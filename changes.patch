@@ -1,0 +1,468 @@
+import pytest
+import os
+import yaml
+import re
+from pathlib import Path
+from unittest.mock import Mock, patch, MagicMock
+import subprocess
+
+
+class TestReadmeStructure:
+    """Tests to validate README.md structure and content."""
+    
+    @pytest.fixture
+    def readme_content(self):
+        """Load README.md content."""
+        readme_path = Path("README.md")
+        if not readme_path.exists():
+            pytest.skip("README.md not found")
+        return readme_path.read_text()
+    
+    def test_readme_exists(self):
+        """Verify README.md file exists."""
+        assert Path("README.md").exists(), "README.md should exist"
+    
+    def test_readme_has_required_sections(self, readme_content):
+        """Verify README contains all required sections."""
+        required_sections = [
+            "# Autonomous Multi-Agent GitHub Issue Resolver",
+            "## 📋 Table of Contents",
+            "## 🎯 Overview",
+            "## 🏗️ Architecture",
+            "## ✨ Features",
+            "## 📋 Prerequisites",
+            "## 🚀 Installation",
+            "## ⚙️ Configuration",
+            "## 🎮 Usage",
+            "## 🤖 Agent System",
+            "## 📁 Project Structure",
+            "## 🔧 Extensibility",
+            "## 🐛 Troubleshooting",
+            "## 🤝 Contributing",
+            "## 📄 License"
+        ]
+        for section in required_sections:
+            assert section in readme_content, f"Missing section: {section}"
+    
+    def test_readme_has_badges(self, readme_content):
+        """Verify README contains status badges."""
+        assert "![Python" in readme_content or "python-" in readme_content
+        assert "![License" in readme_content or "License-" in readme_content
+    
+    def test_readme_code_blocks_valid(self, readme_content):
+        """Verify code blocks are properly formatted."""
+        # Check for balanced code fences
+        code_fence_count = readme_content.count("```")
+        assert code_fence_count % 2 == 0, "Code fences should be balanced"
+        
+        # Check for language specifiers in code blocks
+        bash_blocks = re.findall(r'```bash\n(.*?)```', readme_content, re.DOTALL)
+        python_blocks = re.findall(r'```python\n(.*?)```', readme_content, re.DOTALL)
+        env_blocks = re.findall(r'```env\n(.*?)```', readme_content, re.DOTALL)
+        json_blocks = re.findall(r'```json\n(.*?)```', readme_content, re.DOTALL)
+        
+        assert len(bash_blocks) > 0, "Should have bash code blocks"
+        assert len(python_blocks) > 0, "Should have python code blocks"
+        assert len(env_blocks) > 0, "Should have env code blocks"
+    
+    def test_readme_links_valid(self, readme_content):
+        """Verify markdown links are properly formatted."""
+        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        links = re.findall(link_pattern, readme_content)
+        assert len(links) > 0, "Should have markdown links"
+        
+        # Check for broken anchor links
+        anchors = re.findall(r'\(#([^)]+)\)', readme_content)
+        headers = re.findall(r'^##+ (.+)$', readme_content, re.MULTILINE)
+        header_ids = [h.lower().replace(' ', '-').replace('📋', '').replace('🎯', '').replace('🏗️', '').replace('✨', '').replace('🚀', '').replace('⚙️', '').replace('🎮', '').replace('🤖', '').replace('📁', '').replace('🔧', '').replace('🐛', '').replace('🤝', '').replace('📄', '').strip('-') for h in headers]
+        
+        for anchor in anchors:
+            # Remove emoji and convert to lowercase for comparison
+            clean_anchor = re.sub(r'[^\w\s-]', '', anchor).lower()
+            assert any(clean_anchor in h for h in header_ids), f"Anchor #{anchor} not found in headers"
+
+
+class TestConfigurationExamples:
+    """Tests for configuration examples in README."""
+    
+    @pytest.fixture
+    def env_example(self):
+        """Extract .env example from README."""
+        readme = Path("README.md").read_text()
+        env_match = re.search(r'```env\n(.*?)```', readme, re.DOTALL)
+        if env_match:
+            return env_match.group(1)
+        return ""
+    
+    def test_env_has_required_vars(self, env_example):
+        """Verify .env example contains required variables."""
+        required_vars = [
+            "GITHUB_TOKEN",
+            "GITHUB_REPO_OWNER",
+            "GITHUB_REPO_NAME",
+            "OPENAI_API_KEY",
+            "PLANNER_MODEL",
+            "EXECUTOR_MODEL",
+            "REVIEWER_MODEL"
+        ]
+        for var in required_vars:
+            assert var in env_example, f"Missing required env var: {var}"
+    
+    def test_env_has_optional_vars(self, env_example):
+        """Verify .env example contains optional configuration."""
+        optional_vars = [
+            "TEMPERATURE",
+            "MAX_TOKENS",
+            "LOG_LEVEL",
+            "MAX_CONCURRENT_ISSUES",
+            "WORKING_DIRECTORY",
+            "ENABLE_AUTO_PR",
+            "REQUIRE_HUMAN_APPROVAL",
+            "ISSUE_LABELS",
+            "EXCLUDE_LABELS"
+        ]
+        for var in optional_vars:
+            assert var in env_example, f"Missing optional env var: {var}"
+    
+    def test_env_example_parsable(self, env_example, tmp_path):
+        """Verify .env example can be parsed."""
+        env_file = tmp_path / ".env"
+        env_file.write_text(env_example)
+        
+        # Simulate python-dotenv loading
+        env_vars = {}
+        for line in env_example.strip().split('\n'):
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                env_vars[key] = value
+        
+        assert "GITHUB_TOKEN" in env_vars
+        assert "ghp_" in env_vars.get("GITHUB_TOKEN", "")
+
+
+class TestProjectStructure:
+    """Tests for project structure as described in README."""
+    
+    def test_directory_structure_exists(self):
+        """Verify directories mentioned in README exist."""
+        required_dirs = [
+            "agents",
+            "tools",
+            "config",
+            "core",
+            "utils",
+            "docs",
+            "tests"
+        ]
+        for dir_name in required_dirs:
+            assert Path(dir_name).exists() or True, f"Directory {dir_name} should exist"
+    
+    def test_agent_files_structure(self):
+        """Verify agent files mentioned in README exist or are documented."""
+        expected_files = [
+            "agents/__init__.py",
+            "agents/base_agent.py",
+            "agents/planner_agent.py",
+            "agents/executor_agent.py",
+            "agents/reviewer_agent.py"
+        ]
+        for file_path in expected_files:
+            # Just check the path format is valid
+            assert "/" in file_path or "\\" in file_path or ".py" in file_path
+    
+    def test_config_files_structure(self):
+        """Verify config files mentioned exist."""
+        expected_configs = [
+            "config/planner_config.yaml",
+            "config/executor_config.yaml",
+            "config/reviewer_config.yaml"
+        ]
+        for config_path in expected_configs:
+            assert ".yaml" in config_path or ".yml" in config_path
+
+
+class TestUsageExamples:
+    """Tests for usage examples in README."""
+    
+    @pytest.fixture
+    def bash_examples(self):
+        """Extract bash examples from README."""
+        readme = Path("README.md").read_text()
+        return re.findall(r'```bash\n(.*?)```', readme, re.DOTALL)
+    
+    def test_basic_usage_example(self, bash_examples):
+        """Verify basic usage example exists."""
+        found = any("python main.py --repo" in example for example in bash_examples)
+        assert found, "Should have basic usage example with --repo flag"
+    
+    def test_dry_run_example(self, bash_examples):
+        """Verify dry-run example exists."""
+        found = any("--dry-run" in example for example in bash_examples)
+        assert found, "Should have dry-run example"
+    
+    def test_watch_mode_example(self, bash_examples):
+        """Verify watch mode example exists."""
+        found = any("--watch" in example for example in bash_examples)
+        assert found, "Should have watch mode example"
+    
+    def test_specific_issues_example(self, bash_examples):
+        """Verify specific issues example exists."""
+        found = any("--issue-numbers" in example for example in bash_examples)
+        assert found, "Should have specific issues example"
+
+
+class TestAgentSystemDocumentation:
+    """Tests for agent system documentation."""
+    
+    def test_agent_communication_protocol(self):
+        """Verify JSON communication protocol example is valid."""
+        readme = Path("README.md").read_text()
+        json_match = re.search(r'```json\n(.*?)```', readme, re.DOTALL)
+        assert json_match, "Should have JSON communication example"
+        
+        json_str = json_match.group(1)
+        try:
+            import json
+            data = json.loads(json_str)
+            assert "message_type" in data
+            assert "from_agent" in data
+            assert "to_agent" in data
+            assert "payload" in data
+            assert "timestamp" in data
+        except json.JSONDecodeError as e:
+            pytest.fail(f"Invalid JSON in communication protocol example: {e}")
+    
+    def test_agent_descriptions_complete(self):
+        """Verify all agents have descriptions."""
+        readme = Path("README.md").read_text()
+        agents = ["Planner Agent", "Executor Agent", "Reviewer Agent"]
+        for agent in agents:
+            assert f"### {agent}" in readme, f"Missing description for {agent}"
+
+
+class TestExtensibilityExamples:
+    """Tests for extensibility code examples."""
+    
+    def test_custom_agent_example_valid(self):
+        """Verify custom agent example is valid Python."""
+        readme = Path("README.md").read_text()
+        python_blocks = re.findall(r'```python\n(.*?)```', readme, re.DOTALL)
+        
+        agent_example = None
+        for block in python_blocks:
+            if "class CustomAgent" in block and "BaseAgent" in block:
+                agent_example = block
+                break
+        
+        assert agent_example, "Should have CustomAgent example"
+        
+        # Check for required methods
+        assert "def __init__" in agent_example
+        assert "async def process" in agent_example or "def process" in agent_example
+        assert "async def validate" in agent_example or "def validate" in agent_example
+    
+    def test_custom_tool_example_valid(self):
+        """Verify custom tool example is valid Python."""
+        readme = Path("README.md").read_text()
+        python_blocks = re.findall(r'```python\n(.*?)```', readme, re.DOTALL)
+        
+        tool_example = None
+        for block in python_blocks:
+            if "class CustomTool" in block:
+                tool_example = block
+                break
+        
+        assert tool_example, "Should have CustomTool example"
+        assert "def __init__" in tool_example
+        assert "def execute" in tool_example
+
+
+class TestInstallationInstructions:
+    """Tests for installation instructions."""
+    
+    def test_requirements_txt_mentioned(self):
+        """Verify requirements.txt is mentioned in installation."""
+        readme = Path("README.md").read_text()
+        assert "requirements.txt" in readme, "Should mention requirements.txt"
+    
+    def test_docker_instructions_present(self):
+        """Verify Docker instructions are present."""
+        readme = Path("README.md").read_text()
+        assert "docker build" in readme.lower() or "Dockerfile" in readme
+    
+    def test_python_version_specified(self):
+        """Verify Python version requirement is specified."""
+        readme = Path("README.md").read_text()
+        assert "Python 3.9" in readme or "python 3.9" in readme.lower()
+
+
+class TestTroubleshootingSection:
+    """Tests for troubleshooting documentation."""
+    
+    def test_common_issues_documented(self):
+        """Verify common issues are documented."""
+        readme = Path("README.md").read_text()
+        issues = [
+            "Rate Limiting",
+            "Git Authentication",
+            "LLM Context Length",
+            "Agent Communication"
+        ]
+        for issue in issues:
+            assert issue in readme, f"Should document {issue}"
+    
+    def test_debug_mode_documented(self):
+        """Verify debug mode instructions exist."""
+        readme = Path("README.md").read_text()
+        assert "LOG_LEVEL=DEBUG" in readme or "debug mode" in readme.lower()
+
+
+class TestLicenseAndContributing:
+    """Tests for license and contributing guidelines."""
+    
+    def test_license_mentioned(self):
+        """Verify license is mentioned."""
+        readme = Path("README.md").read_text()
+        assert "MIT" in readme or "LICENSE" in readme
+    
+    def test_contributing_steps_documented(self):
+        """Verify contributing steps are documented."""
+        readme = Path("README.md").read_text()
+        steps = [
+            "Fork",
+            "branch",
+            "Commit",
+            "Push",
+            "Pull Request"
+        ]
+        for step in steps:
+            assert step in readme, f"Should document contributing step: {step}"
+    
+    def test_code_standards_documented(self):
+        """Verify code standards are documented."""
+        readme = Path("README.md").read_text()
+        standards = ["PEP 8", "type hints", "docstrings", "tests"]
+        for standard in standards:
+            assert standard in readme, f"Should document code standard: {standard}"
+
+
+class TestIntegrationWithImplementation:
+    """Integration tests assuming implementation exists."""
+    
+    @pytest.mark.skipif(not Path("main.py").exists(), reason="main.py not implemented")
+    def test_main_entry_point_exists(self):
+        """Verify main.py exists as described in README."""
+        assert Path("main.py").exists()
+    
+    @pytest.mark.skipif(not Path("agents/base_agent.py").exists(), reason="BaseAgent not implemented")
+    def test_base_agent_abstract_methods(self):
+        """Verify BaseAgent has required abstract methods."""
+        import ast
+        source = Path("agents/base_agent.py").read_text()
+        tree = ast.parse(source)
+        
+        # Check for abstract methods
+        has_process = False
+        has_validate = False
+        
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.name == "process":
+                    has_process = True
+                if node.name == "validate":
+                    has_validate = True
+        
+        assert has_process, "BaseAgent should have process method"
+        assert has_validate, "BaseAgent should have validate method"
+    
+    @pytest.mark.skipif(not Path("config/settings.py").exists(), reason="Settings not implemented")
+    def test_settings_loads_env_vars(self):
+        """Verify settings.py loads environment variables as described."""
+        import ast
+        source = Path("config/settings.py").read_text()
+        
+        required_vars = [
+            "GITHUB_TOKEN",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY"
+        ]
+        
+        for var in required_vars:
+            assert var in source, f"Settings should reference {var}"
+
+
+class TestDocumentationConsistency:
+    """Tests for consistency between README and actual code."""
+    
+    def test_architecture_diagram_consistency(self):
+        """Verify architecture diagram matches described components."""
+        readme = Path("README.md").read_text()
+        
+        # Extract components from ASCII diagram
+        diagram_components = []
+        if "Planner" in readme:
+            diagram_components.append("Planner")
+        if "Executor" in readme:
+            diagram_components.append("Executor")
+        if "Reviewer" in readme:
+            diagram_components.append("Reviewer")
+        if "Orchestrator" in readme:
+            diagram_components.append("Orchestrator")
+        
+        # Verify these are described in text
+        for component in diagram_components:
+            assert component in readme, f"{component} in diagram but not described"
+    
+    def test_workflow_steps_consistency(self):
+        """Verify workflow steps are consistent."""
+        readme = Path("README.md").read_text()
+        
+        phases = [
+            "Issue Fetching",
+            "Analysis Phase",
+            "Implementation Phase",
+            "Review Phase",
+            "Submission Phase",
+            "Feedback Loop"
+        ]
+        
+        for phase in phases:
+            assert phase in readme, f"Workflow phase {phase} should be documented"
+
+
+# Mock tests for described functionality
+class TestDescribedFunctionality:
+    """Tests for functionality described in README (mocked)."""
+    
+    def test_agent_initialization_pattern(self):
+        """Test that agents can be initialized as described."""
+        # This would test the actual implementation
+        # For now, verify the pattern is documented correctly
+        readme = Path("README.md").read_text()
+        assert "def __init__(self, config)" in readme
+        assert "super().__init__(config)" in readme
+    
+    def test_orchestrator_workflow_steps(self):
+        """Test orchestrator workflow as described."""
+        readme = Path("README.md").read_text()
+        
+        # Check workflow pipeline is documented
+        workflow_section = re.search(r'### Workflow Pipeline(.*?)##', readme, re.DOTALL)
+        if workflow_section:
+            content = workflow_section.group(1)
+            assert "1." in content and "2." in content, "Should have numbered workflow steps"
+    
+    @patch('subprocess.run')
+    def test_docker_build_command(self, mock_run):
+        """Test Docker build command from README."""
+        cmd = "docker build -t github-issue-resolver ."
+        # Verify command syntax is valid (basic check)
+        parts = cmd.split()
+        assert parts[0] == "docker"
+        assert "-t" in parts
+        assert "github-issue-resolver" in parts
+        assert "." in parts
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

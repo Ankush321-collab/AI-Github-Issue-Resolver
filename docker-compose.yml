@@ -1,0 +1,84 @@
+version: "3.8"
+
+services:
+#   postgres:
+#     image: postgres:16-alpine
+#     container_name: agent-orchestrator-postgres
+#     environment:
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: pankaj
+#       POSTGRES_DB: agent_orchestrator
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U postgres"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-orchestrator-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
+    container_name: agent-orchestrator-orchestrator
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:ankush@host.docker.internal:5432/agent_orchestrator?schema=public
+      REDIS_HOST: agent-orchestrator-redis
+      REDIS_PORT: 6379
+      NEBIUS_API_KEY: ${NEBIUS_API_KEY}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - /tmp/agent-repos:/repos
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: agent-orchestrator-gateway
+    ports:
+      - "4000:4000"
+    environment:
+      ORCHESTRATOR_URL: http://orchestrator:8000
+      REDIS_HOST: agent-orchestrator-redis
+      REDIS_PORT: 6379
+      PORT: 4000
+    depends_on:
+      - orchestrator
+      - redis
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: agent-orchestrator-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_GRAPHQL_URL: http://gateway:4000/graphql
+      NEXT_PUBLIC_GRAPHQL_WS_URL: ws://gateway:4000/graphql
+    depends_on:
+      - gateway
+
+volumes:
+  postgres_data:
+  redis_data:

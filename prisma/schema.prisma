@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AgentRun {
+  id        String      @id @default(uuid())
+  issue     String
+  repoUrl   String      @map("repo_url")
+  status    RunStatus   @default(PENDING)
+  error     String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  state     AgentState?
+  taskLogs  TaskLog[]
+
+  @@map("agent_runs")
+}
+
+model AgentState {
+  id        String   @id @default(uuid())
+  runId     String   @unique @map("run_id")
+  stateJson Json     @map("state_json")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("agent_states")
+}
+
+model TaskLog {
+  id         String     @id @default(uuid())
+  runId      String     @map("run_id")
+  agentName  String     @map("agent_name")
+  inputJson  Json       @map("input_json")
+  outputJson Json?      @map("output_json")
+  status     TaskStatus @default(PENDING)
+  error      String?
+  timestamp  DateTime   @default(now())
+  run        AgentRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([agentName])
+  @@map("task_logs")
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}

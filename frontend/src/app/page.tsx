@@ -265,12 +265,12 @@ export default function Dashboard() {
                       <div className="flex items-start justify-between gap-3 relative z-10">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-lg leading-tight group-hover:text-primary transition-colors truncate">{run.issue}</p>
-                          <p className="text-xs text-text-muted truncate mt-2.5 flex items-center gap-2 font-light">
+                          <div className="text-xs text-text-muted truncate mt-2.5 flex items-center gap-2 font-light">
                             <div className="p-1 bg-white/10 rounded-md">
                               <Github className="w-3 h-3" />
                             </div>
                             <span className="truncate">{run.repoUrl.replace('https://github.com/', '')}</span>
-                          </p>
+                          </div>
                         </div>
                         <StatusBadge status={run.status} />
                       </div>
@@ -531,12 +531,12 @@ function RunDetails({
               </div>
             </div>
             <h3 className="text-3xl font-bold tracking-tight text-white/90 leading-tight">{run.issue}</h3>
-            <p className="text-sm text-text-muted flex items-center gap-2 font-light">
+            <div className="text-sm text-text-muted flex items-center gap-2 font-light">
               <div className="p-1.5 bg-white/5 rounded-lg border border-white/5">
                 <Github className="w-4 h-4" />
               </div>
               <span className="opacity-80 break-all">{run.repoUrl}</span>
-            </p>
+            </div>
           </div>
           {run.prUrl && (
             <motion.a

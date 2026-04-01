@@ -5,6 +5,12 @@ import { getMainDefinition } from '@apollo/client/utilities';
 
 const httpLink = new HttpLink({
   uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:4000/graphql',
+  headers: {
+    'content-type': 'application/json',
+  },
+  fetchOptions: {
+    mode: 'cors',
+  },
 });
 
 const wsLink = typeof window !== 'undefined' ? new GraphQLWsLink(

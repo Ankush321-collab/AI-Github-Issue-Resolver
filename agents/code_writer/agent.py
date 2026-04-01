@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import json
+import re
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -52,10 +53,10 @@ async def run(state: AgentState, llm_client: LLMClient) -> AgentState:
         prompt = build_task_prompt(state)
         messages = [{"role": "user", "content": prompt}]
 
-        accumulated = ""
+        accumulated_parts: list[str] = []
 
-        async def on_token(token: str):
-            accumulated += token
+        def on_token(token: str) -> None:
+            accumulated_parts.append(token)
             state.emit_progress("code_writer", "writing", token)
 
         async for _ in llm_client.chat_stream(
@@ -63,17 +64,26 @@ async def run(state: AgentState, llm_client: LLMClient) -> AgentState:
         ):
             pass
 
-        content = accumulated.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
+        content = "".join(accumulated_parts).strip()
 
-        try:
-            parsed = json.loads(content)
-            state.patch = parsed.get("patch", "")
-        except json.JSONDecodeError:
+        json_block = None
+        if "```json" in content:
+            match = re.search(r"```json\s*(\{.*?\})\s*```", content, re.DOTALL)
+            if match:
+                json_block = match.group(1)
+
+        if json_block is None:
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            if match:
+                json_block = match.group(0)
+
+        if json_block:
+            try:
+                parsed = json.loads(json_block)
+                state.patch = parsed.get("patch", "")
+            except json.JSONDecodeError:
+                state.patch = ""
+        else:
             state.patch = content
 
         state.add_log("code_writer", "Code patch generated")

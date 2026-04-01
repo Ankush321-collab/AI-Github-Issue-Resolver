@@ -18,6 +18,36 @@ async function getRedisClient(): Promise<RedisClient> {
 
 const activeSubscriptions = new Map<string, boolean>();
 
+const normalizeRun = (run: Partial<AgentRun> & Record<string, unknown>): AgentRun => {
+  const createdAt = (run.createdAt as string) ?? (run.created_at as string);
+  return {
+    ...(run as AgentRun),
+    repoUrl: (run.repoUrl as string) ?? (run.repo_url as string),
+    prUrl: (run.prUrl as string) ?? (run.pr_url as string),
+    createdAt,
+    updatedAt:
+      (run.updatedAt as string) ??
+      (run.updated_at as string) ??
+      createdAt,
+  };
+};
+
+const normalizeLog = (runId: string, log: Record<string, unknown>, index: number): TaskLog => ({
+  id: (log.id as string) ?? `${runId}-${index}`,
+  runId,
+  agentName: (log.agentName as string) ?? (log.agent as string) ?? 'unknown',
+  message: (log.message as string) ?? '',
+  timestamp: (log.timestamp as string) ?? new Date().toISOString(),
+});
+
+const normalizeStartRun = (
+  run: Partial<StartRunResponse> & Record<string, unknown>
+): StartRunResponse => ({
+  ...(run as StartRunResponse),
+  repoUrl: (run.repoUrl as string) ?? (run.repo_url as string),
+  createdAt: (run.createdAt as string) ?? (run.created_at as string),
+});
+
 export const resolvers = {
   Query: {
     getRuns: async (_: unknown, args: { limit?: number; offset?: number }): Promise<AgentRun[]> => {
@@ -25,7 +55,7 @@ export const resolvers = {
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs`, {
           params: { limit: args.limit || 50, offset: args.offset || 0 },
         });
-        return response.data;
+        return response.data.map(normalizeRun);
       } catch (error) {
         console.error('Error fetching runs:', error);
         return [];
@@ -35,7 +65,7 @@ export const resolvers = {
     getRunDetails: async (_: unknown, args: { id: string }): Promise<AgentRun | null> => {
       try {
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.id}`);
-        return response.data;
+        return normalizeRun(response.data);
       } catch (error) {
         console.error('Error fetching run details:', error);
         return null;
@@ -45,7 +75,9 @@ export const resolvers = {
     getLogs: async (_: unknown, args: { runId: string }): Promise<TaskLog[]> => {
       try {
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/logs`);
-        return response.data;
+        return (response.data || []).map((log: Record<string, unknown>, index: number) =>
+          normalizeLog(args.runId, log, index)
+        );
       } catch (error) {
         console.error('Error fetching logs:', error);
         return [];
@@ -64,7 +96,7 @@ export const resolvers = {
         const runId = response.data.id;
         startRedisSubscription(runId);
         
-        return response.data;
+        return normalizeStartRun(response.data);
       } catch (error) {
         console.error('Error starting run:', error);
         throw new Error('Failed to start run');
@@ -75,7 +107,7 @@ export const resolvers = {
       try {
         const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/retry`);
         startRedisSubscription(args.runId);
-        return response.data;
+        return normalizeStartRun(response.data);
       } catch (error) {
         console.error('Error retrying run:', error);
         throw new Error('Failed to retry run');
@@ -85,7 +117,7 @@ export const resolvers = {
     cancelRun: async (_: unknown, args: { runId: string }): Promise<StartRunResponse> => {
       try {
         const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/cancel`);
-        return response.data;
+        return normalizeStartRun(response.data);
       } catch (error) {
         console.error('Error cancelling run:', error);
         throw new Error('Failed to cancel run');
@@ -120,6 +152,14 @@ export const resolvers = {
   },
 
   AgentRun: {
+    repoUrl: (parent: AgentRun & Record<string, unknown>): string =>
+      parent.repoUrl ?? (parent.repo_url as string),
+    prUrl: (parent: AgentRun & Record<string, unknown>): string | undefined =>
+      parent.prUrl ?? (parent.pr_url as string | undefined),
+    createdAt: (parent: AgentRun & Record<string, unknown>): string =>
+      parent.createdAt ?? (parent.created_at as string),
+    updatedAt: (parent: AgentRun & Record<string, unknown>): string =>
+      parent.updatedAt ?? (parent.updated_at as string) ?? parent.createdAt,
     state: async (parent: AgentRun): Promise<AgentRun['state']> => {
       try {
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${parent.id}/state`);
@@ -131,7 +171,9 @@ export const resolvers = {
     taskLogs: async (parent: AgentRun): Promise<TaskLog[]> => {
       try {
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${parent.id}/logs`);
-        return response.data;
+        return (response.data || []).map((log: Record<string, unknown>, index: number) =>
+          normalizeLog(parent.id, log, index)
+        );
       } catch {
         return [];
       }

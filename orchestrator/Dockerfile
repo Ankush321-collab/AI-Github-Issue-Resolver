@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy all project files
 COPY . .
 
-RUN pip install --no-cache-dir ruff mypy
-RUN pip install --no-cache-dir -r orchestrator/requirements.txt
+RUN pip install --no-cache-dir --default-timeout=120 --retries=5 ruff mypy
+RUN pip install --no-cache-dir --default-timeout=120 --retries=5 -r orchestrator/requirements.txt
 
 WORKDIR /app/orchestrator
 

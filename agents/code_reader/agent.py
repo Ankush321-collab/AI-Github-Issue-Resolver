@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from itertools import islice
 from pathlib import Path
 import sys
 
@@ -64,7 +65,8 @@ def find_relevant_files(repo_dir: Path, issue: str) -> list[str]:
                 relevant.append(str(file.relative_to(repo_dir)))
 
     if not relevant:
-        relevant = [str(f.relative_to(repo_dir)) for f in repo_dir.rglob("*.py")[:10]]
+        fallback_files = islice(repo_dir.rglob("*.py"), 10)
+        relevant = [str(f.relative_to(repo_dir)) for f in fallback_files]
 
     return relevant[:15]
 

@@ -74,8 +74,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_GRAPHQL_URL: http://gateway:4000/graphql
-      NEXT_PUBLIC_GRAPHQL_WS_URL: ws://gateway:4000/graphql
+      NEXT_PUBLIC_GRAPHQL_URL: http://localhost:4000/graphql
+      NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:4000/graphql
     depends_on:
       - gateway
 

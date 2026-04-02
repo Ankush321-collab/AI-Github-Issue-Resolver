@@ -10,6 +10,8 @@ import { useServer } from 'graphql-ws/lib/use/ws';
 
 import { typeDefs } from './schema/typeDefs.js';
 import { resolvers } from './resolvers/index.js';
+import { authenticateToken } from './auth/service.js';
+import type { AuthContext } from './types/index.js';
 
 const PORT = Number(process.env.PORT || 4000);
 
@@ -32,15 +34,49 @@ async function startServer() {
     cors<cors.CorsRequest>(),
     express.json(),
     expressMiddleware(apolloServer, {
-      context: async ({ req }) => ({
-        requestHeaders: req.headers,
-      }),
+      context: async ({ req }) => {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ')
+          ? authHeader.slice('Bearer '.length)
+          : null;
+
+        const user = token ? await authenticateToken(token) : null;
+
+        const context: AuthContext = {
+          user,
+          token,
+        };
+
+        return context;
+      },
     })
   );
 
   const wsServer = new WebSocketServer({ server: httpServer, path: '/graphql' });
 
-  const serverCleanup = useServer({ schema }, wsServer);
+  const serverCleanup = useServer(
+    {
+      schema,
+      context: async (ctx) => {
+        const authHeader =
+          (ctx.connectionParams?.Authorization as string | undefined) ||
+          (ctx.connectionParams?.authorization as string | undefined) ||
+          '';
+        const token = authHeader.startsWith('Bearer ')
+          ? authHeader.slice('Bearer '.length)
+          : null;
+        const user = token ? await authenticateToken(token) : null;
+
+        const context: AuthContext = {
+          user,
+          token,
+        };
+
+        return context;
+      },
+    },
+    wsServer
+  );
 
   httpServer.listen(PORT, () => {
     console.log(`🚀 Gateway ready at http://localhost:${PORT}/graphql`);

@@ -1,7 +1,18 @@
 import axios from 'axios';
 import { createRedisClient, RedisClient } from './redis.js';
-import { ORCHESTRATOR_URL, AgentRun, TaskLog, StartRunResponse, AgentRunUpdate, AgentProgress } from '../types/index.js';
+import { ORCHESTRATOR_URL, AgentRun, TaskLog, StartRunResponse, AuthContext } from '../types/index.js';
 import { pubsub } from '../types/index.js';
+import {
+  registerUser,
+  loginUser,
+  logoutToken,
+  addGithubToken,
+  updateGithubToken,
+  deleteGithubToken,
+  setActiveGithubToken,
+  getGithubToken,
+  getGithubTokenMetadata,
+} from '../auth/service.js';
 
 let redisClient: RedisClient | null = null;
 
@@ -48,10 +59,20 @@ const normalizeStartRun = (
   createdAt: (run.createdAt as string) ?? (run.created_at as string),
 });
 
+const requireAuth = (context: AuthContext) => {
+  if (!context.user) {
+    throw new Error('Authentication required');
+  }
+};
 export const resolvers = {
   Query: {
-    getRuns: async (_: unknown, args: { limit?: number; offset?: number }): Promise<AgentRun[]> => {
+    getRuns: async (
+      _: unknown,
+      args: { limit?: number; offset?: number },
+      context: AuthContext
+    ): Promise<AgentRun[]> => {
       try {
+        requireAuth(context);
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs`, {
           params: { limit: args.limit || 50, offset: args.offset || 0 },
         });
@@ -62,8 +83,26 @@ export const resolvers = {
       }
     },
 
-    getRunDetails: async (_: unknown, args: { id: string }): Promise<AgentRun | null> => {
+    me: async (_: unknown, __: unknown, context: AuthContext) => {
+      return context.user
+        ? {
+            id: context.user.id,
+            email: context.user.email,
+            hasGithubToken: Boolean(context.user.githubTokens?.length),
+            githubTokens: getGithubTokenMetadata(context.user),
+            activeGithubTokenId: context.user.activeGithubTokenId ?? null,
+            createdAt: context.user.createdAt,
+          }
+        : null;
+    },
+
+    getRunDetails: async (
+      _: unknown,
+      args: { id: string },
+      context: AuthContext
+    ): Promise<AgentRun | null> => {
       try {
+        requireAuth(context);
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.id}`);
         return normalizeRun(response.data);
       } catch (error) {
@@ -72,8 +111,13 @@ export const resolvers = {
       }
     },
 
-    getLogs: async (_: unknown, args: { runId: string }): Promise<TaskLog[]> => {
+    getLogs: async (
+      _: unknown,
+      args: { runId: string },
+      context: AuthContext
+    ): Promise<TaskLog[]> => {
       try {
+        requireAuth(context);
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/logs`);
         return (response.data || []).map((log: Record<string, unknown>, index: number) =>
           normalizeLog(args.runId, log, index)
@@ -86,16 +130,27 @@ export const resolvers = {
   },
 
   Mutation: {
-    startRun: async (_: unknown, args: { issue: string; repoUrl: string }): Promise<StartRunResponse> => {
+    startRun: async (
+      _: unknown,
+      args: { issue: string; repoUrl: string },
+      context: AuthContext
+    ): Promise<StartRunResponse> => {
       try {
+        requireAuth(context);
+        const githubToken = await getGithubToken(context.user.id);
+        if (!githubToken) {
+          throw new Error('GitHub token not set');
+        }
+
         const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs`, {
           issue: args.issue,
           repo_url: args.repoUrl,
+          github_token: githubToken,
         });
-        
+
         const runId = response.data.id;
         startRedisSubscription(runId);
-        
+
         return normalizeStartRun(response.data);
       } catch (error) {
         console.error('Error starting run:', error);
@@ -103,8 +158,13 @@ export const resolvers = {
       }
     },
 
-    retryRun: async (_: unknown, args: { runId: string }): Promise<StartRunResponse> => {
+    retryRun: async (
+      _: unknown,
+      args: { runId: string },
+      context: AuthContext
+    ): Promise<StartRunResponse> => {
       try {
+        requireAuth(context);
         const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/retry`);
         startRedisSubscription(args.runId);
         return normalizeStartRun(response.data);
@@ -114,8 +174,13 @@ export const resolvers = {
       }
     },
 
-    cancelRun: async (_: unknown, args: { runId: string }): Promise<StartRunResponse> => {
+    cancelRun: async (
+      _: unknown,
+      args: { runId: string },
+      context: AuthContext
+    ): Promise<StartRunResponse> => {
       try {
+        requireAuth(context);
         const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/cancel`);
         return normalizeStartRun(response.data);
       } catch (error) {
@@ -123,14 +188,125 @@ export const resolvers = {
         throw new Error('Failed to cancel run');
       }
     },
+
+    register: async (_: unknown, args: { email: string; password: string }) => {
+      const user = await registerUser(args.email, args.password);
+      const { token, user: authUser } = await loginUser(args.email, args.password);
+      return {
+        token,
+        user: {
+          id: authUser.id,
+          email: authUser.email,
+          hasGithubToken: Boolean(authUser.githubTokens?.length),
+          githubTokens: getGithubTokenMetadata(authUser),
+          activeGithubTokenId: authUser.activeGithubTokenId ?? null,
+          createdAt: authUser.createdAt,
+        },
+      };
+    },
+
+    login: async (_: unknown, args: { email: string; password: string }) => {
+      const { token, user } = await loginUser(args.email, args.password);
+      return {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          hasGithubToken: Boolean(user.githubTokens?.length),
+          githubTokens: getGithubTokenMetadata(user),
+          activeGithubTokenId: user.activeGithubTokenId ?? null,
+          createdAt: user.createdAt,
+        },
+      };
+    },
+
+    logout: async (_: unknown, __: unknown, context: AuthContext) => {
+      if (context.token) {
+        await logoutToken(context.token);
+      }
+      return true;
+    },
+
+    addGithubToken: async (
+      _: unknown,
+      args: { token: string; label: string },
+      context: AuthContext
+    ) => {
+      requireAuth(context);
+
+      const user = await addGithubToken(context.user.id, args.token, args.label);
+      return {
+        id: user.id,
+        email: user.email,
+        hasGithubToken: Boolean(user.githubTokens?.length),
+        githubTokens: getGithubTokenMetadata(user),
+        activeGithubTokenId: user.activeGithubTokenId ?? null,
+        createdAt: user.createdAt,
+      };
+    },
+
+    updateGithubToken: async (
+      _: unknown,
+      args: { id: string; token: string; label: string },
+      context: AuthContext
+    ) => {
+      requireAuth(context);
+
+      const user = await updateGithubToken(context.user.id, args.id, args.token, args.label);
+      return {
+        id: user.id,
+        email: user.email,
+        hasGithubToken: Boolean(user.githubTokens?.length),
+        githubTokens: getGithubTokenMetadata(user),
+        activeGithubTokenId: user.activeGithubTokenId ?? null,
+        createdAt: user.createdAt,
+      };
+    },
+
+    deleteGithubToken: async (
+      _: unknown,
+      args: { id: string },
+      context: AuthContext
+    ) => {
+      requireAuth(context);
+
+      const user = await deleteGithubToken(context.user.id, args.id);
+      return {
+        id: user.id,
+        email: user.email,
+        hasGithubToken: Boolean(user.githubTokens?.length),
+        githubTokens: getGithubTokenMetadata(user),
+        activeGithubTokenId: user.activeGithubTokenId ?? null,
+        createdAt: user.createdAt,
+      };
+    },
+
+    setActiveGithubToken: async (
+      _: unknown,
+      args: { id: string },
+      context: AuthContext
+    ) => {
+      requireAuth(context);
+
+      const user = await setActiveGithubToken(context.user.id, args.id);
+      return {
+        id: user.id,
+        email: user.email,
+        hasGithubToken: Boolean(user.githubTokens?.length),
+        githubTokens: getGithubTokenMetadata(user),
+        activeGithubTokenId: user.activeGithubTokenId ?? null,
+        createdAt: user.createdAt,
+      };
+    },
   },
 
   Subscription: {
     agentProgress: {
-      subscribe: async function* (_: unknown, args: { runId: string }) {
+      subscribe: async function* (_: unknown, args: { runId: string }, context: AuthContext) {
         const runId = args.runId;
         
         try {
+          requireAuth(context);
           const redis = await getRedisClient();
           const pubsub = redis.subscribeToUpdates(runId);
           

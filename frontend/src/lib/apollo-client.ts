@@ -1,7 +1,9 @@
-import { ApolloClient, InMemoryCache, HttpLink, split } from '@apollo/client';
+import { ApolloClient, InMemoryCache, HttpLink, split, ApolloLink } from '@apollo/client';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
+import { setContext } from '@apollo/client/link/context';
+import { getAuthToken } from './auth';
 
 const httpLink = new HttpLink({
   uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:4000/graphql',
@@ -13,9 +15,23 @@ const httpLink = new HttpLink({
   },
 });
 
+const authLink = setContext((_, { headers }) => {
+  const token = getAuthToken();
+  return {
+    headers: {
+      ...headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  };
+});
+
 const wsLink = typeof window !== 'undefined' ? new GraphQLWsLink(
   createClient({
     url: process.env.NEXT_PUBLIC_GRAPHQL_WS_URL || 'ws://localhost:4000/graphql',
+    connectionParams: () => {
+      const token = getAuthToken();
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
   })
 ) : null;
 
@@ -29,11 +45,20 @@ const splitLink = typeof window !== 'undefined' && wsLink
         );
       },
       wsLink,
-      httpLink
+      authLink.concat(httpLink)
     )
-  : httpLink;
+  : authLink.concat(httpLink);
 
 export const apolloClient = new ApolloClient({
   link: splitLink,
-  cache: new InMemoryCache(),
+  cache: new InMemoryCache({
+    typePolicies: {
+      User: {
+        keyFields: ['id'],
+      },
+      GitHubToken: {
+        keyFields: ['id'],
+      },
+    },
+  }),
 });

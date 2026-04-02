@@ -57,3 +57,29 @@ export interface AgentRunUpdate {
   status: string;
   message?: string;
 }
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  githubToken?: string;
+  githubTokens?: GitHubToken[];
+  activeGithubTokenId?: string | null;
+  createdAt: string;
+}
+
+export interface GitHubToken {
+  id: string;
+  label: string;
+  lastFour: string;
+  createdAt: string;
+}
+
+export interface AuthPayload {
+  token: string;
+  user: AuthUser;
+}
+
+export interface AuthContext {
+  user: AuthUser | null;
+  token: string | null;
+}

@@ -2,9 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
-import { GET_RUNS, GET_RUN_DETAILS, START_RUN, AGENT_PROGRESS } from '@/lib/queries';
+import {
+  GET_RUNS,
+  GET_RUN_DETAILS,
+  START_RUN,
+  AGENT_PROGRESS,
+  ADD_GITHUB_TOKEN,
+  UPDATE_GITHUB_TOKEN,
+  DELETE_GITHUB_TOKEN,
+  SET_ACTIVE_GITHUB_TOKEN,
+  ME,
+  LOGOUT,
+} from '@/lib/queries';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Play, 
   CheckCircle, 
   XCircle, 
@@ -18,9 +29,13 @@ import {
   Brain,
   Code,
   FlaskConical,
-  GitPullRequest
+  GitPullRequest,
+  KeyRound,
+  LogOut
 } from 'lucide-react';
 import clsx from 'clsx';
+import { AuthGate } from '@/components/AuthGate';
+import { clearAuthToken } from '@/lib/auth';
 
 type RunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
@@ -54,6 +69,13 @@ interface ProgressEvent {
   timestamp: string;
 }
 
+interface GitHubToken {
+  id: string;
+  label: string;
+  lastFour: string;
+  createdAt: string;
+}
+
 const statusConfig: Record<RunStatus, { color: string; bg: string; icon: typeof CheckCircle }> = {
   PENDING: { color: 'text-zinc-400', bg: 'bg-zinc-500/10', icon: Clock },
   RUNNING: { color: 'text-blue-400', bg: 'bg-blue-500/10', icon: Loader2 },
@@ -80,19 +102,29 @@ const agentNames: Record<string, string> = {
 
 const agents = ['code_reader', 'planner', 'code_writer', 'test_writer', 'pr_agent'];
 
-export default function Dashboard() {
+function Dashboard() {
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [issue, setIssue] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [liveProgress, setLiveProgress] = useState<Record<string, ProgressEvent[]>>({});
   const [currentAgent, setCurrentAgent] = useState<string>('');
+  const [showTokenForm, setShowTokenForm] = useState(false);
+  const [githubToken, setGithubTokenValue] = useState('');
+  const [githubTokenLabel, setGithubTokenLabel] = useState('');
+  const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
+  const [tokenSaved, setTokenSaved] = useState(false);
   const progressEndRef = useRef<HTMLDivElement>(null);
 
   const { data, loading, refetch } = useQuery(GET_RUNS, {
     variables: { limit: 50, offset: 0 },
     pollInterval: 3000,
   });
+
+  const { data: meData, refetch: refetchMe } = useQuery(ME);
+
+  const tokens: GitHubToken[] = meData?.me?.githubTokens || [];
+  const activeTokenId: string | null = meData?.me?.activeGithubTokenId || null;
 
   const { data: detailsData } = useQuery(GET_RUN_DETAILS, {
     variables: { id: selectedRun?.id },
@@ -121,6 +153,67 @@ export default function Dashboard() {
       setCurrentAgent('');
     },
   });
+
+  const [addGithubToken, { loading: savingToken }] = useMutation(ADD_GITHUB_TOKEN, {
+    onCompleted: () => {
+      setTokenSaved(true);
+      setGithubTokenValue('');
+      setGithubTokenLabel('');
+      setEditingTokenId(null);
+      refetchMe();
+      setTimeout(() => setTokenSaved(false), 2500);
+    },
+  });
+
+  const [updateGithubToken, { loading: updatingToken }] = useMutation(UPDATE_GITHUB_TOKEN, {
+    onCompleted: () => {
+      setTokenSaved(true);
+      setGithubTokenValue('');
+      setGithubTokenLabel('');
+      setEditingTokenId(null);
+      refetchMe();
+      setTimeout(() => setTokenSaved(false), 2500);
+    },
+  });
+
+  const [deleteGithubToken] = useMutation(DELETE_GITHUB_TOKEN, {
+    onCompleted: () => {
+      setEditingTokenId(null);
+      setGithubTokenValue('');
+      setGithubTokenLabel('');
+      setTokenSaved(false);
+      refetchMe();
+    },
+  });
+
+  const [setActiveGithubToken] = useMutation(SET_ACTIVE_GITHUB_TOKEN, {
+    onCompleted: () => {
+      refetchMe();
+    },
+  });
+
+  const [logout] = useMutation(LOGOUT, {
+    onCompleted: () => {
+      clearAuthToken();
+      window.location.href = '/login';
+    },
+  });
+
+  const openTokenForm = () => {
+    setEditingTokenId(null);
+    setGithubTokenLabel('');
+    setGithubTokenValue('');
+    setTokenSaved(false);
+    setShowTokenForm(true);
+  };
+
+  const closeTokenForm = () => {
+    setShowTokenForm(false);
+    setEditingTokenId(null);
+    setGithubTokenLabel('');
+    setGithubTokenValue('');
+    setTokenSaved(false);
+  };
 
   useEffect(() => {
     if (progressData?.agentProgress) {
@@ -158,6 +251,34 @@ export default function Dashboard() {
     e.preventDefault();
     if (!issue.trim() || !repoUrl.trim()) return;
     startRun({ variables: { issue: issue.trim(), repoUrl: repoUrl.trim() } });
+  };
+
+  const handleTokenSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!githubToken.trim() || !githubTokenLabel.trim()) return;
+    if (editingTokenId) {
+      updateGithubToken({
+        variables: {
+          id: editingTokenId,
+          token: githubToken.trim(),
+          label: githubTokenLabel.trim(),
+        },
+      });
+      return;
+    }
+
+    addGithubToken({
+      variables: {
+        token: githubToken.trim(),
+        label: githubTokenLabel.trim(),
+      },
+    });
+  };
+
+  const handleTokenEdit = (token: GitHubToken) => {
+    setEditingTokenId(token.id);
+    setGithubTokenLabel(token.label);
+    setGithubTokenValue('');
   };
 
   const formatDate = (date: string) => {
@@ -200,16 +321,36 @@ export default function Dashboard() {
               Autonomous Multi-Agent System Control
             </p>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-background font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-primary/20 group overflow-hidden relative"
-          >
-            <div className="absolute inset-0 bg-white/10 translate-y-full hover:translate-y-0 transition-transform duration-300" />
-            <Plus className="relative w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
-            <span className="relative">New Orchestration Run</span>
-          </motion.button>
+          <div className="flex flex-wrap gap-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={openTokenForm}
+              className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 text-text font-semibold rounded-xl transition-all duration-300 hover:border-primary/40 hover:text-primary"
+            >
+              <KeyRound className="w-5 h-5" />
+              <span>GitHub Token</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-background font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-primary/20 group overflow-hidden relative"
+            >
+              <div className="absolute inset-0 bg-white/10 translate-y-full hover:translate-y-0 transition-transform duration-300" />
+              <Plus className="relative w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+              <span className="relative">New Orchestration Run</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => logout()}
+              className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 text-text-muted font-semibold rounded-xl transition-all duration-300 hover:text-error hover:border-error/40"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Logout</span>
+            </motion.button>
+          </div>
         </motion.header>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -393,8 +534,153 @@ export default function Dashboard() {
             </motion.div>
           )}
         </AnimatePresence>
+        <AnimatePresence>
+          {showTokenForm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+              onClick={closeTokenForm}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
+              >
+                <h3 className="text-xl font-semibold mb-2">GitHub Token Vault</h3>
+                <p className="text-sm text-text-muted mb-5">
+                  Store up to three tokens. Choose which token is active for runs.
+                </p>
+                <div className="space-y-3 mb-6">
+                  {tokens.length === 0 ? (
+                    <div className="text-sm text-text-muted bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                      No tokens saved yet.
+                    </div>
+                  ) : (
+                    tokens.map((token) => (
+                      <div
+                        key={token.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-white/90">{token.label}</p>
+                          <p className="text-xs text-text-muted">•••• {token.lastFour}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveGithubToken({ variables: { id: token.id } })}
+                            className={clsx(
+                              'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                              activeTokenId === token.id
+                                ? 'border-primary/40 text-primary bg-primary/10'
+                                : 'border-white/10 text-text-muted hover:text-primary hover:border-primary/30'
+                            )}
+                          >
+                            {activeTokenId === token.id ? 'Active' : 'Set Active'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTokenEdit(token)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 text-text-muted hover:text-white"
+                          >
+                            Update
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteGithubToken({ variables: { id: token.id } })}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/30 text-red-300 hover:text-red-200"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <form onSubmit={handleTokenSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-textMuted mb-1.5">Token label</label>
+                    <input
+                      type="text"
+                      value={githubTokenLabel}
+                      onChange={(e) => setGithubTokenLabel(e.target.value)}
+                      placeholder="Personal, Work, Client, etc."
+                      className="w-full px-4 py-3 bg-black/80 text-white border border-border rounded-lg focus:outline-none focus:border-primary/50 transition-colors"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-textMuted mb-1.5">Personal Access Token</label>
+                    <input
+                      type="password"
+                      value={githubToken}
+                      onChange={(e) => setGithubTokenValue(e.target.value)}
+                      placeholder="ghp_************************"
+                      className="w-full px-4 py-3 bg-black/80 text-white border border-border rounded-lg focus:outline-none focus:border-primary/50 transition-colors"
+                      required
+                    />
+                  </div>
+                  {tokenSaved && (
+                    <div className="text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2">
+                      Token saved successfully.
+                    </div>
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={closeTokenForm}
+                      className="flex-1 px-4 py-2.5 border border-border rounded-lg hover:bg-surfaceHover transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        savingToken ||
+                        updatingToken ||
+                        !githubToken.trim() ||
+                        !githubTokenLabel.trim() ||
+                        (!editingTokenId && tokens.length >= 3)
+                      }
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primaryHover disabled:opacity-50 disabled:cursor-not-allowed text-background font-medium rounded-lg transition-all"
+                    >
+                      {savingToken || updatingToken ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {editingTokenId ? 'Updating...' : 'Saving...'}
+                        </>
+                      ) : (
+                        <>
+                          <KeyRound className="w-4 h-4" />
+                          {editingTokenId ? 'Update Token' : 'Save Token'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {!editingTokenId && tokens.length >= 3 && (
+                    <p className="text-xs text-warning">
+                      You have reached the maximum of 3 tokens. Delete one to add another.
+                    </p>
+                  )}
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <AuthGate>
+      <Dashboard />
+    </AuthGate>
   );
 }
 
@@ -639,13 +925,39 @@ function RunDetails({
               ))}
             </div>
           ) : (
-            <div className="text-center py-24 glass rounded-3xl border-dashed">
-              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                 <Loader2 className={clsx("w-8 h-8 text-white/20", run.status === 'RUNNING' && "animate-spin text-primary/40")} />
+            <div className="py-10 glass rounded-3xl border-dashed">
+              <div className="text-center px-6">
+                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className={clsx("w-8 h-8 text-white/20", run.status === 'RUNNING' && "animate-spin text-primary/40")} />
+                </div>
+                <p className="text-text-muted font-light tracking-wide">
+                  {run.status === 'RUNNING' ? 'Orchestrating agents...' : 'No telemetry data available for this run'}
+                </p>
               </div>
-              <p className="text-text-muted font-light tracking-wide">
-                {run.status === 'RUNNING' ? 'Establishing link with agent cluster...' : 'No telemetry data available for this run'}
-              </p>
+              <div className="mt-8 grid gap-3 px-6">
+                {[
+                  'Code Reader scanning repository',
+                  'Planner composing strategy',
+                  'Code Writer drafting patch',
+                  'Test Writer generating checks',
+                  'PR Agent preparing update',
+                ].map((label, index) => (
+                  <div
+                    key={label}
+                    className="telemetry-step flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3"
+                    style={{ animationDelay: `${index * 120}ms` }}
+                  >
+                    <div className="telemetry-dot" />
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold tracking-[0.2em] uppercase text-white/60">
+                        Stage {index + 1}
+                      </p>
+                      <p className="text-sm text-white/80 mt-1">{label}</p>
+                    </div>
+                    <div className="telemetry-shimmer" />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

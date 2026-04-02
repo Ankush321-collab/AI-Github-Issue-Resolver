@@ -114,3 +114,49 @@ body {
   70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
 }
+
+@keyframes telemetry-float {
+  0% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.1); }
+  50% { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(59, 130, 246, 0.12); }
+  100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.1); }
+}
+
+@keyframes telemetry-shimmer {
+  0% { transform: translateX(-120%); opacity: 0; }
+  30% { opacity: 0.6; }
+  70% { opacity: 0.2; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+.telemetry-step {
+  position: relative;
+  overflow: hidden;
+  animation: telemetry-float 2.4s ease-in-out infinite;
+}
+
+.telemetry-step:nth-child(2n) {
+  animation-delay: 0.4s;
+}
+
+.telemetry-step:nth-child(3n) {
+  animation-delay: 0.8s;
+}
+
+.telemetry-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+  flex-shrink: 0;
+}
+
+.telemetry-shimmer {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: telemetry-shimmer 2.8s ease-in-out infinite;
+}

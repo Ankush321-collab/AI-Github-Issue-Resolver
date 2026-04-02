@@ -35,6 +35,7 @@ logger = structlog.get_logger(__name__)
 class StartRunRequest(BaseModel):
     issue: str
     repo_url: str
+    github_token: str | None = None
 
 
 class RunResponse(BaseModel):
@@ -130,7 +131,12 @@ app = FastAPI(title="Agent Orchestrator", lifespan=lifespan)
 @app.post("/api/runs", response_model=RunResponse)
 async def start_run(request: StartRunRequest):
     run_id = str(uuid.uuid4())
-    state = AgentState(run_id=run_id, issue=request.issue, repo_url=request.repo_url)
+    state = AgentState(
+        run_id=run_id,
+        issue=request.issue,
+        repo_url=request.repo_url,
+        github_token=request.github_token,
+    )
 
     runs_store[run_id] = state
     logger.info("run_started", run_id=run_id)

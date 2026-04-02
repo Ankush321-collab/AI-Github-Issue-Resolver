@@ -33,6 +33,7 @@ class AgentState(BaseModel):
     run_id: str
     issue: str
     repo_url: str
+    github_token: Optional[str] = Field(default=None, exclude=True, repr=False)
     code_context: str = ""
     plan: str = ""
     complexity: Optional[str] = None

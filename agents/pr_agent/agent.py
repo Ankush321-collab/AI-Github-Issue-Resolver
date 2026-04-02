@@ -123,7 +123,7 @@ Create a branch, apply the changes, and create a pull request."""
 async def run(state: AgentState, llm_client: LLMClient) -> AgentState:
     state.add_log("pr_agent", "Starting PR agent")
 
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = state.github_token or os.environ.get("GITHUB_TOKEN")
     if not github_token:
         state.add_log("pr_agent", "Error: GITHUB_TOKEN not set")
         state.error = "GITHUB_TOKEN not configured"

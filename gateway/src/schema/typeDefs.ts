@@ -54,16 +54,45 @@ export const typeDefs = `#graphql
     timestamp: String!
   }
 
+  type User {
+    id: ID!
+    email: String!
+    hasGithubToken: Boolean!
+    githubTokens: [GitHubToken!]!
+    activeGithubTokenId: ID
+    createdAt: String!
+  }
+
+  type GitHubToken {
+    id: ID!
+    label: String!
+    lastFour: String!
+    createdAt: String!
+  }
+
+  type AuthPayload {
+    token: String!
+    user: User!
+  }
+
   type Query {
     getRuns(limit: Int, offset: Int): [AgentRun!]!
     getRunDetails(id: ID!): AgentRun
     getLogs(runId: ID!): [TaskLog!]!
+    me: User
   }
 
   type Mutation {
     startRun(issue: String!, repoUrl: String!): AgentRun!
     retryRun(runId: ID!): AgentRun!
     cancelRun(runId: ID!): AgentRun!
+    register(email: String!, password: String!): AuthPayload!
+    login(email: String!, password: String!): AuthPayload!
+    logout: Boolean!
+    addGithubToken(token: String!, label: String!): User!
+    updateGithubToken(id: ID!, token: String!, label: String!): User!
+    deleteGithubToken(id: ID!): User!
+    setActiveGithubToken(id: ID!): User!
   }
 
   type Subscription {

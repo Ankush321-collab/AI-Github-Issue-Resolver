@@ -2,365 +2,151 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-An intelligent, autonomous system that leverages multiple AI agents to analyze, plan, and resolve GitHub issues automatically. Built with a modular multi-agent architecture integrating LLMs (OpenAI/Anthropic) with GitHub's API.
+A production-style multi-agent system that analyzes GitHub issues, plans a solution, writes code, and opens pull requests. It ships with a GraphQL gateway, a LangGraph-style Python orchestrator, and a Next.js dashboard UI.
 
 ![System diagram](docs/diagram-export-3-30-2026-2_45_41-PM.png)
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
-- [Installation](#installation)
+- [Quickstart (Docker)](#quickstart-docker)
+- [Local Development](#local-development)
 - [Configuration](#configuration)
 - [Usage](#usage)
-- [Agent System](#agent-system)
 - [Project Structure](#project-structure)
-- [Extensibility](#extensibility)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
 
-## 🎯 Overview
+## Overview
 
-This project implements a sophisticated multi-agent system that autonomously resolves GitHub issues through collaborative AI agents. The system fetches open issues, analyzes requirements, generates solutions, reviews code quality, and submits pull requests—all while maintaining human oversight capabilities.
+This project orchestrates specialized AI agents to resolve GitHub issues end-to-end. The orchestrator coordinates the planner, code reader, code writer, test writer, and PR agent, while the gateway exposes a GraphQL API and the UI provides a human-friendly control surface.
 
-### Key Capabilities
+## Architecture
 
-- 🤖 **Autonomous Issue Resolution**: Automatically fetches and processes GitHub issues
-- 🧠 **Multi-Agent Collaboration**: Specialized agents for planning, execution, and review
-- 🔍 **Intelligent Code Analysis**: LLM-powered code understanding and generation
-- ✅ **Automated Quality Assurance**: Built-in code review and validation
-- 🔄 **Iterative Improvement**: Self-correcting workflow with retry mechanisms
-- 📝 **PR Generation**: Automatic branch creation and pull request submission
+- **Frontend (Next.js)**: Dashboard UI for runs, logs, and GitHub token management.
+- **Gateway (Node.js + Apollo)**: GraphQL API, authentication, and websocket subscriptions.
+- **Orchestrator (Python)**: LangGraph-style state machine that runs agents.
+- **Agents (Python)**: Planner, code reader, code writer, test writer, PR agent.
+- **Redis**: Run state, pub/sub for progress streaming.
+- **LLM**: Nebius AI Studio (OpenAI-compatible) using `moonshotai/Kimi-K2.5`.
 
-## 🏗️ Architecture
+## Features
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    GitHub Repository                        │
-└──────────────────────┬────────────────────────────────────┘
-                       │ Issues/PRs
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Orchestrator Engine                      │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Planner   │───▶│  Executor   │───▶│  Reviewer   │     │
-│  │   Agent     │    │   Agent     │    │   Agent     │     │
-│  └─────────────┘    └─────────────┘    └──────┬──────┘     │
-│         │                    │                 │            │
-│         └────────────────────┴─────────────────┘            │
-│                              │                              │
-│                              ▼                              │
-│                    ┌─────────────────┐                      │
-│                    │  GitHub Tools   │                      │
-│                    │  LLM Interface  │                      │
-│                    └─────────────────┘                      │
-└─────────────────────────────────────────────────────────────┘
-```
+- End-to-end issue resolution with multi-agent collaboration.
+- Real-time run progress via GraphQL subscriptions.
+- Token vault with multi-token support and active token selection.
+- Structured logging and run history in the UI.
+- Docker-based deployment and local dev scripts.
 
-### Workflow Pipeline
+## Prerequisites
 
-1. **Issue Fetching**: Retrieves open issues from configured repositories
-2. **Analysis Phase**: Planner agent decomposes the issue into actionable tasks
-3. **Implementation Phase**: Executor agents generate code changes
-4. **Review Phase**: Reviewer agents validate solution correctness and quality
-5. **Submission Phase**: Creates branches, commits changes, and opens PRs
-6. **Feedback Loop**: Monitors PR status and addresses review comments
-
-## ✨ Features
-
-### Agent Capabilities
-
-- **Planner Agent**: Analyzes issue descriptions, creates implementation strategies, and breaks down complex tasks
-- **Executor Agent**: Generates code solutions, modifies existing files, and implements features
-- **Reviewer Agent**: Validates code quality, checks for bugs, ensures style compliance, and verifies test coverage
-- **Coordinator**: Manages agent communication, handles state persistence, and orchestrates workflow transitions
-
-### Integration Features
-
-- GitHub API v4 (GraphQL) and REST API support
-- Support for OpenAI GPT-4, GPT-3.5, and Anthropic Claude models
-- Git operations (clone, branch, commit, push) automation
-- Issue label filtering and priority-based processing
-- Concurrent issue processing with rate limiting
-
-## 📋 Prerequisites
-
-- Python 3.9 or higher
+- Python 3.9+
+- Node.js 18+
 - Git 2.30+
+- Redis (or use Docker)
 - GitHub Personal Access Token with `repo` and `workflow` scopes
-- OpenAI API key or Anthropic API key
-- (Optional) Docker for containerized deployment
+- Nebius API key
 
-## 🚀 Installation
+## Quickstart (Docker)
 
-### Local Setup
-
-1. Clone the repository:
-```bash
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-### Docker Setup
+1. Create a `.env` file in the repo root (see example below).
+2. Start the stack:
 
 ```bash
-## ⚙️ Configuration
+docker compose up --build
+```
 
-Create a `.env` file in the root directory:
+3. Open the dashboard at `http://localhost:3000`.
+
+## Local Development
+
+You can run the stack without Docker using the provided scripts:
+
+- Windows: `run_local.ps1`
+- macOS/Linux: `run_local.sh`
+
+These scripts start Redis (if needed), the orchestrator, the gateway, and the frontend.
+
+## Configuration
+
+Create a `.env` file in the repo root. Example:
 
 ```env
-# GitHub Configuration
+# Database (optional, only if you enable Postgres)
+DATABASE_URL=postgresql://postgres:password@localhost:5432/agent_orchestrator?schema=public
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# LLM (Nebius AI Studio)
+NEBIUS_API_KEY=your_nebius_key
+
+# Auth
+JWT_SECRET=replace-with-a-strong-secret
+
+# GitHub (optional fallback)
 GITHUB_TOKEN=ghp_your_personal_access_token
-GITHUB_REPO_OWNER=your-org-or-username
-GITHUB_REPO_NAME=your-repo-name
-
-# LLM Configuration (Choose one or both)
-OPENAI_API_KEY=sk-your-openai-key
-ANTHROPIC_API_KEY=sk-your-anthropic-key
-
-# Model Settings
-PLANNER_MODEL=gpt-4
-EXECUTOR_MODEL=gpt-4
-REVIEWER_MODEL=gpt-4
-TEMPERATURE=0.2
-MAX_TOKENS=4096
-
-# System Configuration
-LOG_LEVEL=INFO
-MAX_CONCURRENT_ISSUES=3
-WORKING_DIRECTORY=./workspace
-ENABLE_AUTO_PR=true
-REQUIRE_HUMAN_APPROVAL=false
-
-# Optional: Specific issue filtering
-ISSUE_LABELS=bug,enhancement
-EXCLUDE_LABELS=wontfix,duplicate
-### GitHub Token Permissions
-
-Your GitHub token requires the following scopes:
-- `repo` - Full control of private repositories
-- `workflow` - Update GitHub Action workflows
-- `read:org` - Read organization data (if applicable)
-## 🎮 Usage
-
-### Basic Usage
-
-Run the system against a specific repository:
-
-```bash
-python main.py --repo owner/repo-name
-### Process Specific Issues
-
-```bash
-python main.py --repo owner/repo-name --issue-numbers 123,124,125
-### Dry Run Mode (No actual changes)
-
-```bash
-python main.py --repo owner/repo-name --dry-run
-### Continuous Monitoring Mode
-
-```bash
-python main.py --repo owner/repo-name --watch --interval 300
-### Example Output
-
 ```
-[2024-01-15 10:30:45] INFO: Starting Autonomous Issue Resolver
-[2024-01-15 10:30:46] INFO: Fetching open issues from myorg/myrepo...
-[2024-01-15 10:30:47] INFO: Found 3 issues to process
-[2024-01-15 10:30:48] INFO: Processing Issue #142: Fix authentication bug
-[2024-01-15 10:30:50] INFO: Planner Agent: Analyzing issue requirements...
-[2024-01-15 10:31:15] INFO: Planner Agent: Created 4 subtasks
-[2024-01-15 10:31:16] INFO: Executor Agent: Implementing fix in auth.py...
-[2024-01-15 10:32:30] INFO: Executor Agent: Changes committed to branch fix/auth-142
-[2024-01-15 10:32:35] INFO: Reviewer Agent: Validating solution...
-[2024-01-15 10:33:10] INFO: Reviewer Agent: All checks passed
-[2024-01-15 10:33:15] INFO: Created PR #143: Fix authentication bug
-## 🤖 Agent System
 
-### Planner Agent
+Notes:
+- **JWT_SECRET is required** for the gateway to start.
+- The UI uses a token vault. Add a token in the UI and mark it active before starting a run.
+- `GITHUB_TOKEN` is optional and can be used as a fallback for non-UI runs.
 
-The Planner Agent is responsible for:
-- Parsing issue descriptions and comments
-- Identifying affected code areas
-- Creating step-by-step implementation plans
-- Estimating complexity and resource requirements
-- Breaking down issues into atomic tasks
+## Usage
 
-**Configuration**: `config/planner_config.yaml`
-### Executor Agent
+### Dashboard
 
-The Executor Agent handles:
-- Code generation and modification
-- Test creation and updates
-- Documentation updates
-- Git operations (branching, committing)
-- Dependency management
+1. Go to `http://localhost:3000`.
+2. Register or log in.
+3. Open **GitHub Token** and add a personal access token (max 3).
+4. Click **Set Active** for the token you want to use.
+5. Click **New Orchestration Run** and provide an issue description and repo URL.
 
-**Configuration**: `config/executor_config.yaml`
-### Reviewer Agent
+### GraphQL API
 
-The Reviewer Agent performs:
-- Static code analysis
-- Syntax and logic validation
-- Security vulnerability scanning
-- Style guide compliance checking
-- Test coverage verification
+- HTTP endpoint: `http://localhost:4000/graphql`
+- WS endpoint: `ws://localhost:4000/graphql`
 
-**Configuration**: `config/reviewer_config.yaml`
-### Communication Protocol
+Authentication is via a JWT returned by `login` or `register` and sent as `Authorization: Bearer <token>`.
 
-Agents communicate via a shared state store (Redis or in-memory) using structured JSON messages:
-```json
-{
-  "message_type": "task_assignment",
-  "from_agent": "planner",
-  "to_agent": "executor",
-  "payload": {
-    "task_id": "task_123",
-    "description": "Implement user authentication",
-    "files_to_modify": ["auth.py"],
-    "acceptance_criteria": [...]
-  },
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-## 📁 Project Structure
+## Project Structure
 
 ```
 .
-├── agents/
-│   ├── __init__.py
-│   ├── base_agent.py          # Abstract base class for all agents
-│   ├── planner_agent.py       # Issue analysis and planning
-│   ├── executor_agent.py      # Code implementation
-│   └── reviewer_agent.py      # Code review and validation
-├── tools/
-│   ├── __init__.py
-│   ├── github_tools.py          # GitHub API wrapper
-│   ├── git_tools.py           # Git operations
-│   ├── llm_interface.py       # LLM API abstraction
-│   └── code_analyzer.py       # Static analysis utilities
-├── config/
-│   ├── settings.py            # Configuration management
-│   ├── planner_config.yaml
-│   ├── executor_config.yaml
-│   └── reviewer_config.yaml
-├── core/
-│   ├── orchestrator.py        # Workflow orchestration
-│   ├── state_manager.py       # Agent state persistence
-│   └── error_handler.py       # Retry and error recovery
-├── utils/
-│   ├── logger.py              # Logging configuration
-│   └── helpers.py             # Utility functions
-├── docs/
-│   ├── ARCHITECTURE.md        # Detailed architecture docs
-│   └── AGENTS.md              # Agent development guide
-├── tests/
-│   ├── test_agents/
-│   └── test_tools/
-├── main.py                    # Entry point
-├── requirements.txt
-├── Dockerfile
+├── agents/                 # Planner, code reader/writer, test writer, PR agent
+├── orchestrator/           # Python LangGraph-style orchestrator
+├── gateway/                # Node.js GraphQL API
+├── frontend/               # Next.js dashboard UI
+├── shared/                 # Shared clients (LLM, Redis, DB)
+├── prisma/                 # Prisma schema (optional DB)
+├── tests/                  # Unit tests
+├── docker-compose.yml
 └── README.md
-## 🔧 Extensibility
+```
 
-### Adding a New Agent
+## Troubleshooting
 
-1. Create a new file in `agents/` inheriting from `BaseAgent`:
-```python
-from agents.base_agent import BaseAgent
+- **GitHub token not found**: Add a token in the UI and set it active. Tokens are per-user.
+- **Failed to start run**: Check gateway logs for auth or token errors.
+- **JWT_SECRET missing**: The gateway will fail to start without it.
+- **Redis connection issues**: Ensure Redis is running and `REDIS_HOST` is reachable.
+- **No progress updates**: Verify the websocket URL and that the gateway can reach Redis.
 
-class CustomAgent(BaseAgent):
-    def __init__(self, config):
-        super().__init__(config)
-        self.agent_type = "custom"
-    
-    async def process(self, task):
-        # Implementation logic
-        pass
-    
-    async def validate(self, result):
-        # Validation logic
-        pass
-2. Register the agent in `core/orchestrator.py`
-3. Add configuration in `config/custom_config.yaml`
-### Custom Tools
+## Contributing
 
-Add new tools in the `tools/` directory following the tool interface:
-```python
-class CustomTool:
-    def __init__(self, config):
-        self.config = config
-    
-    def execute(self, **kwargs):
-        # Tool implementation
-        pass
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Rate Limiting**
-- GitHub API: The system implements exponential backoff. Check `GITHUB_TOKEN` permissions.
-- OpenAI/Anthropic: Monitor token usage in your dashboard.
-**Git Authentication Errors**
-- Ensure `GITHUB_TOKEN` has `workflow` scope
-- Check token expiration dates
-- Verify repository access permissions
-**LLM Context Length Exceeded**
-- Reduce `MAX_TOKENS` in configuration
-- Enable code chunking in `config/settings.py`
-- Use smaller context models for specific agents
-**Agent Communication Failures**
-- Check Redis connection (if using distributed mode)
-- Verify state manager permissions
-- Review logs in `logs/agent_communication.log`
-### Debug Mode
-
-Enable verbose logging:
-```bash
-LOG_LEVEL=DEBUG python main.py --repo owner/repo
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
+3. Commit changes (`git commit -m "Add amazing feature"`)
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
-### Development Setup
 
-```bash
-pip install -r requirements-dev.txt
-pre-commit install
-pytest tests/
-### Code Standards
+## License
 
-- Follow PEP 8 style guidelines
-- Add type hints for new functions
-- Include docstrings (Google format)
-- Write unit tests for new features
-- Maintain test coverage above 80%
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-## 🙏 Acknowledgments
-
-- OpenAI for GPT-4 API
-- Anthropic for Claude API
-- GitHub for their comprehensive API
-- The open-source community for inspiration and tools
-## 📞 Support
-
-For questions or support:
-- Open an issue on GitHub
-- Contact: [your-email@example.com]
-- Documentation: [Wiki Link]
----
-**Disclaimer**: This system performs automated code changes. Always review generated pull requests before merging. Use with appropriate safeguards in production environments.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

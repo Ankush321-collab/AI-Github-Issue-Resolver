@@ -8,6 +8,8 @@ export interface AuthUser {
   email: string;
   githubTokens?: GitHubTokenEntry[];
   activeGithubTokenId?: string | null;
+  profileImageUrl?: string | null;
+  authProviders?: string[];
   createdAt: string;
 }
 
@@ -52,8 +54,26 @@ function stripUser(user: StoredUser): AuthUser {
     email: user.email,
     githubTokens: user.githubTokens,
     activeGithubTokenId: user.activeGithubTokenId ?? null,
+    profileImageUrl: user.profileImageUrl ?? null,
+    authProviders: user.authProviders ?? [],
     createdAt: user.createdAt,
   };
+}
+
+async function createSessionToken(userId: string): Promise<string> {
+  const secret = ensureJwtSecret();
+  const token = jwt.sign(
+    { sub: userId },
+    secret,
+    { expiresIn: TOKEN_TTL_SECONDS }
+  );
+
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000).toISOString();
+  const session: StoredSession = { userId, expiresAt };
+  await redisSet(sessionKey(tokenHash), JSON.stringify(session), TOKEN_TTL_SECONDS);
+
+  return token;
 }
 
 async function getUserByEmail(email: string): Promise<StoredUser | null> {
@@ -93,6 +113,8 @@ export async function registerUser(email: string, password: string): Promise<Aut
     createdAt: now,
     githubTokens: [],
     activeGithubTokenId: null,
+    profileImageUrl: null,
+    authProviders: ['email'],
   };
 
   await storeUser(user);
@@ -110,19 +132,82 @@ export async function loginUser(email: string, password: string): Promise<{ toke
     throw new Error('Invalid credentials');
   }
 
-  const secret = ensureJwtSecret();
-  const token = jwt.sign(
-    { sub: user.id },
-    secret,
-    { expiresIn: TOKEN_TTL_SECONDS }
-  );
+  let userToReturn = user;
+  const providers = user.authProviders ?? [];
+  if (!providers.includes('email')) {
+    const updated: StoredUser = {
+      ...user,
+      authProviders: [...providers, 'email'],
+    };
+    await storeUser(updated);
+    userToReturn = updated;
+  }
 
-  const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000).toISOString();
-  const session: StoredSession = { userId: user.id, expiresAt };
-  await redisSet(sessionKey(tokenHash), JSON.stringify(session), TOKEN_TTL_SECONDS);
+  const token = await createSessionToken(user.id);
 
-  return { token, user: stripUser(user) };
+  return { token, user: stripUser(userToReturn) };
+}
+
+export async function issueTokenForUserId(userId: string): Promise<string> {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+  return createSessionToken(user.id);
+}
+
+export async function getOrCreateOAuthUser(
+  email: string,
+  provider: string
+): Promise<AuthUser> {
+  const existing = await getUserByEmail(email);
+  if (existing) {
+    const providers = existing.authProviders ?? [];
+    if (!providers.includes(provider)) {
+      const updated: StoredUser = {
+        ...existing,
+        authProviders: [...providers, provider],
+      };
+      await storeUser(updated);
+      return stripUser(updated);
+    }
+    return stripUser(existing);
+  }
+
+  const passwordSeed = crypto.randomBytes(24).toString('hex');
+  const passwordHash = await bcrypt.hash(passwordSeed, 12);
+  const now = new Date().toISOString();
+  const user: StoredUser = {
+    id: crypto.randomUUID(),
+    email,
+    passwordHash,
+    createdAt: now,
+    githubTokens: [],
+    activeGithubTokenId: null,
+    profileImageUrl: null,
+    authProviders: [provider],
+  };
+
+  await storeUser(user);
+  return stripUser(user);
+}
+
+export async function updateProfile(
+  userId: string,
+  profileImageUrl: string | null
+): Promise<AuthUser> {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const updated: StoredUser = {
+    ...user,
+    profileImageUrl,
+  };
+
+  await storeUser(updated);
+  return stripUser(updated);
 }
 
 export function getGithubTokenMetadata(user: AuthUser) {

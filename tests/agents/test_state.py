@@ -7,6 +7,7 @@ from orchestrator.src.state import AgentState, RunStatus
 def test_agent_state_creation():
     state = AgentState(
         run_id="test-123",
+        user_id="user-1",
         issue="Fix bug in login",
         repo_url="https://github.com/test/repo",
     )
@@ -23,7 +24,12 @@ def test_agent_state_creation():
 
 
 def test_agent_state_add_log():
-    state = AgentState(run_id="test-123", issue="Test issue", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test-123",
+        user_id="user-1",
+        issue="Test issue",
+        repo_url="https://github.com/test/repo",
+    )
     state.add_log("test_agent", "Test message")
 
     assert len(state.logs) == 1
@@ -35,6 +41,7 @@ def test_agent_state_add_log():
 def test_agent_state_model_dump():
     state = AgentState(
         run_id="test-123",
+        user_id="user-1",
         issue="Test issue",
         repo_url="https://github.com/test/repo",
         status=RunStatus.RUNNING,
@@ -46,7 +53,12 @@ def test_agent_state_model_dump():
 
 
 def test_agent_state_default_values():
-    state = AgentState(run_id="test-123", issue="Test", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test-123",
+        user_id="user-1",
+        issue="Test",
+        repo_url="https://github.com/test/repo",
+    )
 
     assert state.created_at is not None
     assert state.updated_at is not None

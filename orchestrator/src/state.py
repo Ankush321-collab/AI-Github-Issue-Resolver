@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
+import asyncio
 
 from pydantic import BaseModel, Field
 
@@ -31,6 +32,7 @@ class AgentProgress(BaseModel):
 
 class AgentState(BaseModel):
     run_id: str
+    user_id: str
     issue: str
     repo_url: str
     github_token: Optional[str] = Field(default=None, exclude=True, repr=False)
@@ -61,7 +63,9 @@ class AgentState(BaseModel):
         self.progress_events.append(event.model_dump())
         self.updated_at = datetime.utcnow()
         if self._progress_callback:
-            self._progress_callback(event)
+            result = self._progress_callback(event)
+            if asyncio.iscoroutine(result):
+                asyncio.create_task(result)
 
     def add_log(self, agent: str, message: str) -> None:
         self.logs.append(

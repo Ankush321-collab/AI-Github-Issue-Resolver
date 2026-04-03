@@ -15,7 +15,12 @@ async def test_graph_node_execution():
     graph.add_node("test_node", handler)
     graph.add_edge("test_node", "end")
 
-    state = AgentState(run_id="test-123", issue="Test", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test-123",
+        user_id="user-1",
+        issue="Test",
+        repo_url="https://github.com/test/repo",
+    )
     result = await graph.execute(state)
 
     assert len(result.logs) == 1
@@ -38,7 +43,12 @@ async def test_graph_multiple_nodes():
     graph.add_node("node2", node2)
     graph.add_edge("node1", "node2")
 
-    state = AgentState(run_id="test-123", issue="Test", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test-123",
+        user_id="user-1",
+        issue="Test",
+        repo_url="https://github.com/test/repo",
+    )
     result = await graph.execute(state)
 
     assert len(result.logs) == 2
@@ -56,7 +66,12 @@ async def test_graph_status_on_error():
 
     graph.add_node("failing", failing_node)
 
-    state = AgentState(run_id="test-123", issue="Test", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test-123",
+        user_id="user-1",
+        issue="Test",
+        repo_url="https://github.com/test/repo",
+    )
     result = await graph.execute(state)
 
     assert result.status == RunStatus.FAILED
@@ -77,7 +92,12 @@ def test_graph_get_next_node():
     graph = LangGraphOrchestrator()
     graph.add_edge("node_a", "node_b")
 
-    state = AgentState(run_id="test", issue="Test", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test",
+        user_id="user-1",
+        issue="Test",
+        repo_url="https://github.com/test/repo",
+    )
     next_node = graph.get_next_node("node_a", state)
 
     assert next_node == "node_b"
@@ -86,7 +106,12 @@ def test_graph_get_next_node():
 def test_graph_get_next_node_no_edge():
     graph = LangGraphOrchestrator()
 
-    state = AgentState(run_id="test", issue="Test", repo_url="https://github.com/test/repo")
+    state = AgentState(
+        run_id="test",
+        user_id="user-1",
+        issue="Test",
+        repo_url="https://github.com/test/repo",
+    )
     next_node = graph.get_next_node("node_a", state)
 
     assert next_node is None

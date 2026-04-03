@@ -1,0 +1,14 @@
+{
+  "name": "agent-orchestrator-root",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.6.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.6.0"
+  }
+}

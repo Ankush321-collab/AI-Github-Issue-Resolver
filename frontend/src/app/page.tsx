@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import {
   GET_RUNS,
@@ -31,7 +32,8 @@ import {
   FlaskConical,
   GitPullRequest,
   KeyRound,
-  LogOut
+  LogOut,
+  UserRound
 } from 'lucide-react';
 import clsx from 'clsx';
 import { AuthGate } from '@/components/AuthGate';
@@ -103,6 +105,7 @@ const agentNames: Record<string, string> = {
 const agents = ['code_reader', 'planner', 'code_writer', 'test_writer', 'pr_agent'];
 
 function Dashboard() {
+  const router = useRouter();
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [issue, setIssue] = useState('');
@@ -301,7 +304,7 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen p-6 md:p-8 bg-background selection:bg-primary/30">
+    <div className="min-h-screen p-6 md:p-8 bg-background dashboard-aurora selection:bg-primary/30">
       <div className="max-w-7xl mx-auto">
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
@@ -322,6 +325,15 @@ function Dashboard() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => router.push('/profile')}
+              className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 text-text font-semibold rounded-xl transition-all duration-300 hover:border-secondary/40 hover:text-secondary"
+            >
+              <UserRound className="w-5 h-5" />
+              <span>Profile</span>
+            </motion.button>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -784,6 +796,8 @@ function RunDetails({
   isAgentCompleted: (name: string) => boolean;
   onRefresh: () => void;
 }) {
+  const logEndRef = useRef<HTMLDivElement>(null);
+
   const formatDate = (date: string) => {
     return new Date(date).toLocaleString('en-US', {
       month: 'short',
@@ -795,6 +809,18 @@ function RunDetails({
   };
 
   const currentAgentProgress = currentAgent ? (liveProgress[currentAgent] || []) : [];
+  const liveEvents = useMemo(() => {
+    return Object.values(liveProgress)
+      .flat()
+      .filter((event) => event?.content)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }, [liveProgress]);
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [liveEvents]);
 
   return (
     <div className="glass border border-white/5 rounded-3xl overflow-hidden shadow-2xl relative">
@@ -960,6 +986,36 @@ function RunDetails({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="mt-10 rounded-3xl border border-white/10 bg-black/30 p-6 shadow-inner">
+          <div className="flex items-center justify-between">
+            <h5 className="text-xs font-bold uppercase tracking-[0.3em] text-text-muted">Live Log Stream</h5>
+            {run.status === 'RUNNING' && (
+              <span className="text-[10px] uppercase tracking-widest text-secondary">Streaming</span>
+            )}
+          </div>
+          <div className="mt-4 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar font-mono text-xs">
+            {liveEvents.length > 0 ? (
+              <div className="space-y-3">
+                {liveEvents.map((event, index) => (
+                  <div key={`${event.agentName}-${event.timestamp}-${index}`} className="flex gap-3">
+                    <span className="text-secondary/70">[{event.agentName}]</span>
+                    <span className={clsx(
+                      "text-white/70",
+                      event.eventType === 'thinking' && "text-secondary/80",
+                      event.eventType === 'writing' && "text-primary/80"
+                    )}>
+                      {event.content}
+                    </span>
+                  </div>
+                ))}
+                <div ref={logEndRef} />
+              </div>
+            ) : (
+              <div className="text-text-muted/70">No live events yet.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>

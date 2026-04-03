@@ -1,4 +1,5 @@
 import json
+import asyncio
 from typing import Any, AsyncGenerator, Callable, Optional
 
 import httpx
@@ -117,7 +118,9 @@ class LLMClient:
                         if token:
                             accumulated_content += token
                             if on_token:
-                                on_token(token)
+                                result = on_token(token)
+                                if asyncio.iscoroutine(result):
+                                    await result
                             yield token
                     except json.JSONDecodeError:
                         continue

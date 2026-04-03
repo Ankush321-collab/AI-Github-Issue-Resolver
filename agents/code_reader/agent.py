@@ -104,7 +104,11 @@ async def run(state: AgentState, llm_client: LLMClient) -> AgentState:
             prompt = build_task_prompt(state)
             messages = [{"role": "user", "content": f"{prompt}\n\nCode Context:\n{code_context}"}]
 
-            response = await llm_client.chat_json(messages, SYSTEM_PROMPT)
+            try:
+                response = await llm_client.chat_json(messages, SYSTEM_PROMPT)
+            except Exception as e:
+                logger.warning("code_reader_llm_json_error", error=str(e))
+                response = {}
 
             if isinstance(response, dict):
                 if response.get("relevant_files"):

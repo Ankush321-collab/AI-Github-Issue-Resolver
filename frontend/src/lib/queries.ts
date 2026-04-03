@@ -71,6 +71,8 @@ export const REGISTER = gql`
         id
         email
         hasGithubToken
+        profileImageUrl
+        authProviders
         createdAt
       }
     }
@@ -85,6 +87,8 @@ export const LOGIN = gql`
         id
         email
         hasGithubToken
+        profileImageUrl
+        authProviders
         createdAt
       }
     }
@@ -94,6 +98,26 @@ export const LOGIN = gql`
 export const LOGOUT = gql`
   mutation Logout {
     logout
+  }
+`;
+
+export const UPDATE_PROFILE = gql`
+  mutation UpdateProfile($profileImageUrl: String) {
+    updateProfile(profileImageUrl: $profileImageUrl) {
+      id
+      email
+      hasGithubToken
+      profileImageUrl
+      authProviders
+      activeGithubTokenId
+      githubTokens {
+        id
+        label
+        lastFour
+        createdAt
+      }
+      createdAt
+    }
   }
 `;
 
@@ -187,6 +211,8 @@ export const ME = gql`
       email
       hasGithubToken
       activeGithubTokenId
+      profileImageUrl
+      authProviders
       githubTokens {
         id
         label

@@ -59,7 +59,7 @@ async def apply_patch(target_dir: Path, patch: str) -> bool:
         return False
 
     patch_file = target_dir / "changes.patch"
-    patch_file.write_text(patch)
+    patch_file.write_text(patch, encoding="utf-8")
 
     result = subprocess.run(
         ["git", "apply", "--3way", str(patch_file)],
@@ -94,7 +94,7 @@ async def apply_patch(target_dir: Path, patch: str) -> bool:
             try:
                 full_path = target_dir / file_path
                 full_path.parent.mkdir(parents=True, exist_ok=True)
-                full_path.write_text(content + "\n")
+                full_path.write_text(content + "\n", encoding="utf-8")
                 logger.info("file_written", file=file_path)
             except Exception as e:
                 logger.error("file_write_failed", file=file_path, error=str(e))

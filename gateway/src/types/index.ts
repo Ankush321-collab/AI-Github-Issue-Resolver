@@ -64,6 +64,8 @@ export interface AuthUser {
   githubToken?: string;
   githubTokens?: GitHubToken[];
   activeGithubTokenId?: string | null;
+  profileImageUrl?: string | null;
+  authProviders?: string[];
   createdAt: string;
 }
 

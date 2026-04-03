@@ -12,6 +12,7 @@ import {
   setActiveGithubToken,
   getGithubToken,
   getGithubTokenMetadata,
+  updateProfile,
 } from '../auth/service.js';
 
 let redisClient: RedisClient | null = null;
@@ -74,7 +75,11 @@ export const resolvers = {
       try {
         requireAuth(context);
         const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs`, {
-          params: { limit: args.limit || 50, offset: args.offset || 0 },
+          params: {
+            limit: args.limit || 50,
+            offset: args.offset || 0,
+            user_id: context.user.id,
+          },
         });
         return response.data.map(normalizeRun);
       } catch (error) {
@@ -91,6 +96,8 @@ export const resolvers = {
             hasGithubToken: Boolean(context.user.githubTokens?.length),
             githubTokens: getGithubTokenMetadata(context.user),
             activeGithubTokenId: context.user.activeGithubTokenId ?? null,
+            profileImageUrl: context.user.profileImageUrl ?? null,
+            authProviders: context.user.authProviders ?? [],
             createdAt: context.user.createdAt,
           }
         : null;
@@ -103,7 +110,9 @@ export const resolvers = {
     ): Promise<AgentRun | null> => {
       try {
         requireAuth(context);
-        const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.id}`);
+        const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.id}`, {
+          params: { user_id: context.user.id },
+        });
         return normalizeRun(response.data);
       } catch (error) {
         console.error('Error fetching run details:', error);
@@ -118,7 +127,9 @@ export const resolvers = {
     ): Promise<TaskLog[]> => {
       try {
         requireAuth(context);
-        const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/logs`);
+        const response = await axios.get(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/logs`, {
+          params: { user_id: context.user.id },
+        });
         return (response.data || []).map((log: Record<string, unknown>, index: number) =>
           normalizeLog(args.runId, log, index)
         );
@@ -146,6 +157,7 @@ export const resolvers = {
           issue: args.issue,
           repo_url: args.repoUrl,
           github_token: githubToken,
+          user_id: context.user.id,
         });
 
         const runId = response.data.id;
@@ -165,7 +177,9 @@ export const resolvers = {
     ): Promise<StartRunResponse> => {
       try {
         requireAuth(context);
-        const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/retry`);
+        const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/retry`, null, {
+          params: { user_id: context.user.id },
+        });
         startRedisSubscription(args.runId);
         return normalizeStartRun(response.data);
       } catch (error) {
@@ -181,7 +195,9 @@ export const resolvers = {
     ): Promise<StartRunResponse> => {
       try {
         requireAuth(context);
-        const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/cancel`);
+        const response = await axios.post(`${ORCHESTRATOR_URL}/api/runs/${args.runId}/cancel`, null, {
+          params: { user_id: context.user.id },
+        });
         return normalizeStartRun(response.data);
       } catch (error) {
         console.error('Error cancelling run:', error);
@@ -200,6 +216,8 @@ export const resolvers = {
           hasGithubToken: Boolean(authUser.githubTokens?.length),
           githubTokens: getGithubTokenMetadata(authUser),
           activeGithubTokenId: authUser.activeGithubTokenId ?? null,
+          profileImageUrl: authUser.profileImageUrl ?? null,
+          authProviders: authUser.authProviders ?? [],
           createdAt: authUser.createdAt,
         },
       };
@@ -215,6 +233,8 @@ export const resolvers = {
           hasGithubToken: Boolean(user.githubTokens?.length),
           githubTokens: getGithubTokenMetadata(user),
           activeGithubTokenId: user.activeGithubTokenId ?? null,
+          profileImageUrl: user.profileImageUrl ?? null,
+          authProviders: user.authProviders ?? [],
           createdAt: user.createdAt,
         },
       };
@@ -225,6 +245,26 @@ export const resolvers = {
         await logoutToken(context.token);
       }
       return true;
+    },
+
+    updateProfile: async (
+      _: unknown,
+      args: { profileImageUrl?: string | null },
+      context: AuthContext
+    ) => {
+      requireAuth(context);
+      const profileImageUrl = args.profileImageUrl?.trim() || null;
+      const user = await updateProfile(context.user.id, profileImageUrl);
+      return {
+        id: user.id,
+        email: user.email,
+        hasGithubToken: Boolean(user.githubTokens?.length),
+        githubTokens: getGithubTokenMetadata(user),
+        activeGithubTokenId: user.activeGithubTokenId ?? null,
+        profileImageUrl: user.profileImageUrl ?? null,
+        authProviders: user.authProviders ?? [],
+        createdAt: user.createdAt,
+      };
     },
 
     addGithubToken: async (
@@ -241,6 +281,8 @@ export const resolvers = {
         hasGithubToken: Boolean(user.githubTokens?.length),
         githubTokens: getGithubTokenMetadata(user),
         activeGithubTokenId: user.activeGithubTokenId ?? null,
+        profileImageUrl: user.profileImageUrl ?? null,
+        authProviders: user.authProviders ?? [],
         createdAt: user.createdAt,
       };
     },
@@ -259,6 +301,8 @@ export const resolvers = {
         hasGithubToken: Boolean(user.githubTokens?.length),
         githubTokens: getGithubTokenMetadata(user),
         activeGithubTokenId: user.activeGithubTokenId ?? null,
+        profileImageUrl: user.profileImageUrl ?? null,
+        authProviders: user.authProviders ?? [],
         createdAt: user.createdAt,
       };
     },
@@ -277,6 +321,8 @@ export const resolvers = {
         hasGithubToken: Boolean(user.githubTokens?.length),
         githubTokens: getGithubTokenMetadata(user),
         activeGithubTokenId: user.activeGithubTokenId ?? null,
+        profileImageUrl: user.profileImageUrl ?? null,
+        authProviders: user.authProviders ?? [],
         createdAt: user.createdAt,
       };
     },
@@ -295,6 +341,8 @@ export const resolvers = {
         hasGithubToken: Boolean(user.githubTokens?.length),
         githubTokens: getGithubTokenMetadata(user),
         activeGithubTokenId: user.activeGithubTokenId ?? null,
+        profileImageUrl: user.profileImageUrl ?? null,
+        authProviders: user.authProviders ?? [],
         createdAt: user.createdAt,
       };
     },

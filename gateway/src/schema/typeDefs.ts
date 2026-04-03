@@ -60,6 +60,8 @@ export const typeDefs = `#graphql
     hasGithubToken: Boolean!
     githubTokens: [GitHubToken!]!
     activeGithubTokenId: ID
+    profileImageUrl: String
+    authProviders: [String!]!
     createdAt: String!
   }
 
@@ -89,6 +91,7 @@ export const typeDefs = `#graphql
     register(email: String!, password: String!): AuthPayload!
     login(email: String!, password: String!): AuthPayload!
     logout: Boolean!
+    updateProfile(profileImageUrl: String): User!
     addGithubToken(token: String!, label: String!): User!
     updateGithubToken(id: ID!, token: String!, label: String!): User!
     deleteGithubToken(id: ID!): User!

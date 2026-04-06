@@ -55,6 +55,7 @@ async def run(state: AgentState, llm_client: LLMClient) -> AgentState:
         accumulated = ""
 
         async def on_token(token: str):
+            nonlocal accumulated
             accumulated += token
             state.emit_progress("test_writer", "writing", token)
 

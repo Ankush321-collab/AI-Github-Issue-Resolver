@@ -339,13 +339,16 @@ export async function setActiveGithubToken(
 
 export async function getGithubToken(userId: string): Promise<string | null> {
   const user = await getUserById(userId);
-  if (!user || !user.githubTokens || user.githubTokens.length === 0) {
-    return null;
+  if (user && user.githubTokens && user.githubTokens.length > 0) {
+    const activeId = user.activeGithubTokenId ?? user.githubTokens[0].id;
+    const active = user.githubTokens.find((entry) => entry.id === activeId);
+    if (active?.token) {
+        return active.token;
+    }
   }
 
-  const activeId = user.activeGithubTokenId ?? user.githubTokens[0].id;
-  const active = user.githubTokens.find((entry) => entry.id === activeId);
-  return active?.token ?? null;
+  // Fallback to environment variable if no user token is set
+  return process.env.GITHUB_TOKEN ?? null;
 }
 
 export async function authenticateToken(token: string): Promise<AuthUser | null> {

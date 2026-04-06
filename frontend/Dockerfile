@@ -8,8 +8,8 @@ RUN npm install
 
 COPY frontend/ .
 
-ENV NEXT_PUBLIC_GRAPHQL_URL=http://gateway:4000/graphql
-ENV NEXT_PUBLIC_GRAPHQL_WS_URL=ws://gateway:4000/graphql
+ENV NEXT_PUBLIC_GRAPHQL_URL=http://18.60.255.130:4000/graphql
+ENV NEXT_PUBLIC_GRAPHQL_WS_URL=ws://18.60.255.130:4000/graphql
 
 EXPOSE 3000
 

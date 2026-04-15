@@ -3,7 +3,7 @@ import { Providers } from '@/components/Providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Agent Github | Dashboard',
+  title: 'Agent Orchestrator | Dashboard',
   description: 'Monitor and manage AI agent runs',
 };
 

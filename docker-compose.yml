@@ -40,7 +40,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL_DOCKER}
-      REDIS_HOST: agent-orchestrator-redis
+      REDIS_HOST: redis
       REDIS_PORT: 6379
       NEBIUS_API_KEY: ${NEBIUS_API_KEY}
       GITHUB_TOKEN: ${GITHUB_TOKEN}
@@ -61,7 +61,7 @@ services:
       - "4000:4000"
     environment:
       ORCHESTRATOR_URL: http://orchestrator:8000
-      REDIS_HOST: agent-orchestrator-redis
+      REDIS_HOST: redis
       REDIS_PORT: 6379
       PORT: 4000
       JWT_SECRET: ${JWT_SECRET}
@@ -78,8 +78,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_GRAPHQL_URL: http://18.60.255.130:4000/graphql
-      NEXT_PUBLIC_GRAPHQL_WS_URL: ws://18.60.255.130:4000/graphql
+      NEXT_PUBLIC_GRAPHQL_URL: http://localhost:4000/graphql
+      NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:4000/graphql
     depends_on:
       - gateway
 

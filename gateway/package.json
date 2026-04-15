@@ -1,5 +1,5 @@
 {
-  "name": "agent-github-gateway",
+  "name": "agent-orchestrator-gateway",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

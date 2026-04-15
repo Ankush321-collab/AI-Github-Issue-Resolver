@@ -317,7 +317,7 @@ function Dashboard() {
               <div className="p-3 bg-primary/15 rounded-2xl border border-primary/20 backdrop-blur-xl">
                 <Zap className="w-8 h-8 text-primary animate-pulse" />
               </div>
-              <span className="animate-text-gradient bg-clip-text">Agent Github</span>
+              <span className="animate-text-gradient bg-clip-text">Agent Orchestrator</span>
             </h1>
             <p className="text-text-muted mt-2 font-light tracking-wide pl-1.5 flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />

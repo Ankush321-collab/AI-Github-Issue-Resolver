@@ -1,4 +1,4 @@
-# AGENTS.md — Agent Github Resolver
+# AGENTS.md — Autonomous Multi-Agent GitHub Issue Resolver
 
 > For agentic coding agents operating in this repository. Read this file fully before making any changes.
 

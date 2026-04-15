@@ -2,9 +2,9 @@ import { PubSub } from 'graphql-subscriptions';
 
 export const pubsub = new PubSub();
 
-export const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || 'http://localhost:8000';
-export const REDIS_HOST = process.env.REDIS_HOST || 'redis';
-export const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
+export const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL as string;
+export const REDIS_HOST = process.env.REDIS_HOST as string;
+export const REDIS_PORT = parseInt(process.env.REDIS_PORT as string, 10);
 
 export interface AgentRun {
   id: string;

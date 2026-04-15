@@ -16,7 +16,7 @@ function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const authBase = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:4000';
+  const authBase = process.env.NEXT_PUBLIC_AUTH_URL as string;
 
   const [register, { loading }] = useMutation(REGISTER, {
     onCompleted: (data) => {

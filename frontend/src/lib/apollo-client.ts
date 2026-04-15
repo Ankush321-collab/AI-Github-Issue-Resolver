@@ -6,7 +6,7 @@ import { setContext } from '@apollo/client/link/context';
 import { getAuthToken } from './auth';
 
 const httpLink = new HttpLink({
-  uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:4000/graphql',
+  uri: process.env.NEXT_PUBLIC_GRAPHQL_URL,
   headers: {
     'content-type': 'application/json',
   },
@@ -27,7 +27,7 @@ const authLink = setContext((_, { headers }) => {
 
 const wsLink = typeof window !== 'undefined' ? new GraphQLWsLink(
   createClient({
-    url: process.env.NEXT_PUBLIC_GRAPHQL_WS_URL || 'ws://localhost:4000/graphql',
+    url: process.env.NEXT_PUBLIC_GRAPHQL_WS_URL as string,
     connectionParams: () => {
       const token = getAuthToken();
       return token ? { Authorization: `Bearer ${token}` } : {};

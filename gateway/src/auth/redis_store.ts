@@ -1,7 +1,7 @@
 import { createClient, RedisClientType } from 'redis';
 
-const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
-const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
+const REDIS_HOST = process.env.REDIS_HOST as string;
+const REDIS_PORT = parseInt(process.env.REDIS_PORT as string, 10);
 
 let client: RedisClientType | null = null;
 let connecting: Promise<void> | null = null;

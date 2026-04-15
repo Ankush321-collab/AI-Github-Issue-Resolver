@@ -10,8 +10,8 @@ logger = structlog.get_logger(__name__)
 class RedisConfig:
     def __init__(
         self,
-        host: str = "localhost",
-        port: int = 6379,
+        host: str,
+        port: int,
         db: int = 0,
         password: Optional[str] = None,
     ) -> None:
@@ -99,8 +99,8 @@ class RedisClient:
 
 
 def create_redis_client(
-    host: str = "localhost",
-    port: int = 6379,
+    host: str,
+    port: int,
     db: int = 0,
     password: Optional[str] = None,
 ) -> RedisClient:

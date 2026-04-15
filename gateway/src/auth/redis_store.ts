@@ -11,10 +11,12 @@ async function getClient(): Promise<RedisClientType> {
     return client;
   }
   if (!connecting) {
+    const useTls = REDIS_HOST.includes('amazonaws.com');
     client = createClient({
       socket: {
         host: REDIS_HOST,
         port: REDIS_PORT,
+        tls: useTls,
       },
     });
 

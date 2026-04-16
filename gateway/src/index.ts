@@ -78,6 +78,8 @@ async function startServer() {
   const app = express();
   const httpServer = http.createServer(app);
 
+//  its working done manually
+
   const apolloServer = new ApolloServer({
     schema,
     plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],

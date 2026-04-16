@@ -1,0 +1,63 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ap-south-2
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-2.amazonaws.com
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Images
+        run: |
+          docker build -t $ECR_REGISTRY/ai-orchestrator:latest -f orchestrator/Dockerfile .
+          docker push $ECR_REGISTRY/ai-orchestrator:latest
+          
+          docker build -t $ECR_REGISTRY/ai-gateway:latest -f gateway/Dockerfile .
+          docker push $ECR_REGISTRY/ai-gateway:latest
+          
+          docker build -t $ECR_REGISTRY/ai-frontend:latest -f frontend/Dockerfile .
+          docker push $ECR_REGISTRY/ai-frontend:latest
+
+  deploy-to-asg:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Trigger Rolling Deployment via SSM
+        run: |
+          aws ssm send-command \
+            --targets "Key=tag:aws:autoscaling:groupName,Values=newaigithubautoscaling" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "cd /home/ubuntu/AI-Github-Issue-Resolver",
+              "aws ecr get-login-password --region ap-south-2 | docker login --username AWS --password-stdin '${{ env.ECR_REGISTRY }}'",
+              "docker compose pull",
+              "docker compose up -d"
+            ]'

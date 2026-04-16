@@ -137,9 +137,14 @@ async def lifespan(app: FastAPI):
     load_dotenv(Path(__file__).parent.parent / ".env")
 
     llm_client = create_llm_client(os.environ.get("NEBIUS_API_KEY", ""))
-    redis_host = os.environ.get("REDIS_HOST")
-    redis_port = int(os.environ.get("REDIS_PORT"))
-    redis_client = create_redis_client(host=redis_host, port=redis_port)
+    redis_host = os.getenv("REDIS_HOST", "localhost")
+    redis_port = int(os.getenv("REDIS_PORT", 6379))
+    redis_password = os.getenv("REDIS_PASSWORD")
+    redis_client = create_redis_client(
+        host=redis_host, 
+        port=redis_port, 
+        password=redis_password
+    )
     await redis_client.connect()
     await connect_db()
     orchestrator = create_graph(redis_client)

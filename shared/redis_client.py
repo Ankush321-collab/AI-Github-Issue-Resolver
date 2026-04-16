@@ -30,13 +30,13 @@ class RedisClient:
         self.client: Optional[redis.Redis] = None
 
     async def connect(self) -> None:
-        use_ssl = "amazonaws.com" in self.config.host
+        # NOTE: SSL/TLS is explicitly disabled to match the AWS cluster configuration
+        # (Encryption in transit = Disabled).
         self.client = redis.Redis(
             host=self.config.host,
             port=self.config.port,
             db=self.config.db,
             password=self.config.password,
-            ssl=use_ssl,
             decode_responses=True,
         )
         await self.client.ping()
